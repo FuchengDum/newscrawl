@@ -1,10 +1,11 @@
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 DB_FILE = "ainews.db"
 
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE)
+    conn.execute("PRAGMA foreign_keys = ON;")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -88,13 +89,13 @@ def update_analysis(event_id, a):
             a.get("difficulty"),
             a.get("value_score"),
             a.get("analysis_summary"),
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
             event_id
         ))
         conn.commit()
 
 def delete_old_unanalyzed_events():
-    limit_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    limit_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     with get_db_connection() as conn:
         # 删除未被分析或标记为低价值且超过 7 天的原始事件
         conn.execute("""
