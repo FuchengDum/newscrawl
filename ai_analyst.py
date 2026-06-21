@@ -7,13 +7,13 @@ import database
 load_dotenv()
 
 # 初始化配置
-api_key = os.getenv("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
 
 def analyze_hot_topic(title, platform):
-    global api_key
-    if not api_key:
+    key = os.getenv("GEMINI_API_KEY")
+    if key:
+        genai.configure(api_key=key)
+        
+    if not key:
         return {
             "has_value": False,
             "value_score": 1,
@@ -21,11 +21,12 @@ def analyze_hot_topic(title, platform):
             "pain_point": "请检查环境变量或.env文件中的GEMINI_API_KEY",
             "product_concept": "未配置密钥",
             "difficulty": "easy",
-            "analysis_summary": "请先配置密钥"
+            "analysis_summary": "请先配置密钥",
+            "status": "failed"
         }
         
     prompt = f"""
-    你是一名经验丰富的产品经理与天使投资分析师。
+    你是一名经验丰富的产品经理与天使投资投资分析师。
     请分析以下热点事件，并评估从中是否能挖掘出特定的用户痛点，从而开发出对应的软件产品、SaaS 接口、浏览器插件或轻量级小程序。
 
     事件标题：{title}
@@ -59,7 +60,8 @@ def analyze_hot_topic(title, platform):
             "pain_point": f"Gemini API 报错: {str(e)}",
             "product_concept": "分析失败",
             "difficulty": "easy",
-            "analysis_summary": "API调用异常"
+            "analysis_summary": "API调用异常",
+            "status": "failed"
         }
 
 def trigger_event_analysis(event_id, title, platform):

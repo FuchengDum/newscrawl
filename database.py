@@ -77,7 +77,9 @@ def get_pending_events():
 
 def update_analysis(event_id, a):
     # a 是字典，包含 has_value, value_score, target_audience, pain_point, product_concept, difficulty, analysis_summary
-    status = "analyzed" if a.get("has_value") and a.get("value_score", 0) >= 6 else "low_value"
+    status = a.get("status")
+    if not status:
+        status = "analyzed" if a.get("has_value") and a.get("value_score", 0) >= 6 else "low_value"
     conn = get_db_connection()
     try:
         with conn:

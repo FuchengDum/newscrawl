@@ -129,3 +129,25 @@ def test_delete_old_unanalyzed_events():
         # and C and D need_analysis should be preserved
         assert conn.execute("SELECT * FROM need_analysis WHERE event_id = ?", (id_c,)).fetchone() is not None
         assert conn.execute("SELECT * FROM need_analysis WHERE event_id = ?", (id_d,)).fetchone() is not None
+
+def test_update_analysis_status_override():
+    # Setup event
+    database.save_hot_event("Failed Analysis Event", "http://failed.com", "weibo", 50)
+    events = database.get_pending_events()
+    event_id = [e for e in events if e["title"] == "Failed Analysis Event"][0]["id"]
+    
+    analysis = {
+        "has_value": False,
+        "value_score": 1,
+        "target_audience": "错误",
+        "pain_point": "Gemini API 报错",
+        "product_concept": "分析失败",
+        "difficulty": "easy",
+        "analysis_summary": "API调用异常",
+        "status": "failed"
+    }
+    database.update_analysis(event_id, analysis)
+    
+    with database.get_db_connection() as conn:
+        row = conn.execute("SELECT * FROM need_analysis WHERE event_id = ?", (event_id,)).fetchone()
+        assert row["status"] == "failed"
