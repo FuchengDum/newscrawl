@@ -1,0 +1,87 @@
+<h2>选择您的看板页面布局设计</h2>
+<p class="subtitle">我们将为您搭建的热度分析看板页面提供以下两种界面布局，您更倾向于哪一种？</p>
+
+<div class="options">
+  <div class="option" data-choice="layout-dual-pane" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>方案 A: 经典双栏分屏布局 (Dual-Pane Split Layout)</h3>
+      <p>左侧为热点列表（包含平台、热度及AI简要评估），点击任意热点，右侧立即展示AI详细需求挖掘分析板。无需弹窗，浏览极其连贯，适合高频需求筛选。</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="layout-grid-modal" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>方案 B: 现代卡片网格 + 详情弹窗 (Grid Cards + Detail Modal)</h3>
+      <p>首页展示精美的网格卡片墙，每个卡片对应一个高价值需求构想。点击卡片后弹出全屏/半屏对话框展示AI详细报告。视觉重点突出，适合探索性浏览。</p>
+    </div>
+  </div>
+</div>
+
+<br><br>
+
+<div class="section">
+  <h3>布局结构示意图</h3>
+  <br>
+  <div class="split">
+    <!-- LEFT: Dual Pane Mockup -->
+    <div class="mockup">
+      <div class="mockup-header">方案 A 示意图 (双栏布局)</div>
+      <div class="mockup-body" style="height: 250px; display: flex; flex-direction: column;">
+        <div class="mock-nav" style="font-size: 0.8rem; padding: 0.4rem; border-radius: 4px 4px 0 0;">
+          🔥 热点需求看板
+        </div>
+        <div style="display: flex; flex: 1; min-height: 0; background: var(--bg-secondary);">
+          <!-- Left side list -->
+          <div class="mock-sidebar" style="width: 40%; font-size: 0.75rem; padding: 0.5rem; overflow-y: hidden; border-right: 1px solid var(--border); background: var(--bg-primary);">
+            <div style="background: var(--accent); color: white; padding: 0.2rem; margin-bottom: 0.3rem; border-radius: 4px;">微博热点1 (8分)</div>
+            <div style="background: var(--bg-primary); padding: 0.2rem; margin-bottom: 0.3rem; border-radius: 4px; border: 1px solid var(--border);">知乎热点2 (7分)</div>
+            <div style="background: var(--bg-primary); padding: 0.2rem; margin-bottom: 0.3rem; border-radius: 4px; border: 1px solid var(--border);">微博热点3 (5分)</div>
+          </div>
+          <!-- Right side details -->
+          <div class="mock-content" style="padding: 0.75rem; flex: 1; font-size: 0.75rem; background: var(--bg-secondary);">
+            <div style="font-weight: bold; margin-bottom: 0.4rem;">💡 需求挖掘详情: 微博热点1</div>
+            <div style="color: var(--text-secondary); margin-bottom: 0.2rem;"><b>痛点：</b>经常加班报销繁琐</div>
+            <div style="color: var(--text-secondary); margin-bottom: 0.2rem;"><b>方案：</b>发票一键合并小程序</div>
+            <div style="color: var(--success); font-weight: bold;">价值评分：8/10</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Grid Card Mockup -->
+    <div class="mockup">
+      <div class="mockup-header">方案 B 示意图 (网格卡片)</div>
+      <div class="mockup-body" style="height: 250px; display: flex; flex-direction: column;">
+        <div class="mock-nav" style="font-size: 0.8rem; padding: 0.4rem; border-radius: 4px 4px 0 0;">
+          🔥 热点需求看板
+        </div>
+        <div class="mock-content" style="padding: 0.75rem; flex: 1; overflow-y: hidden; background: var(--bg-secondary);">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <!-- Card 1 -->
+            <div style="border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem; font-size: 0.7rem; background: var(--bg-primary);">
+              <div style="font-weight: bold;">发票一键报销</div>
+              <div style="color: var(--text-secondary); font-size: 0.65rem;">价值：8分 | 难度：简单</div>
+            </div>
+            <!-- Card 2 -->
+            <div style="border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem; font-size: 0.7rem; background: var(--bg-primary);">
+              <div style="font-weight: bold;">PPT一键大纲</div>
+              <div style="color: var(--text-secondary); font-size: 0.65rem;">价值：7分 | 难度：中等</div>
+            </div>
+            <!-- Card 3 -->
+            <div style="border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem; font-size: 0.7rem; background: var(--bg-primary);">
+              <div style="font-weight: bold;">简历AI智能美化</div>
+              <div style="color: var(--text-secondary); font-size: 0.65rem;">价值：9分 | 难度：简单</div>
+            </div>
+            <!-- Card 4 -->
+            <div style="border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem; font-size: 0.7rem; background: var(--bg-primary);">
+              <div style="font-weight: bold;">每日餐单AI搭配</div>
+              <div style="color: var(--text-secondary); font-size: 0.65rem;">价值：6分 | 难度：简单</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

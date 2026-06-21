@@ -1,0 +1,550 @@
+{
+  "name": "get_news_final",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 3,
+              "triggerAtMinute": 20
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        4336,
+        1648
+      ],
+      "id": "31cc09df-110d-44a5-a84e-07c139e43e7b",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    \"json\":{\"feed\":\"https://blog.google/technology/ai/rss/\"}\n  },\n  {\n    \"json\":{\"feed\":\"https://venturebeat.com/category/ai/feed/\"}\n  },\n  {\n    \"json\":{\"feed\":\"https://techcrunch.com/category/artificial-intelligence/feed/\"}\n  },\n  {\n    \"json\":{\"feed\":\"https://the-decoder.com/feed/\"}\n  },\n  {\n    \"json\":{\"feed\":\"https://www.technologyreview.com/topic/artificial-intelligence/feed/\"}\n  },\n  {\n    \"json\":{\"feed\":\"https://export.arxiv.org/rss/cs.AI\"}\n  }\n]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4576,
+        1648
+      ],
+      "id": "aa10bd25-0538-46fe-b8a8-6c7f387f348d",
+      "name": "set rss AI source"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.feed }}",
+        "options": {
+          "ignoreSSL": false
+        }
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        4816,
+        1648
+      ],
+      "id": "ffb11337-1640-46fe-a459-4ce3d8876ec6",
+      "name": "RSS Read",
+      "executeOnce": false,
+      "notesInFlow": false,
+      "onError": "continueRegularOutput",
+      "notes": "error"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        6016,
+        1648
+      ],
+      "id": "925e59db-731b-4379-a5e2-77053643c4df",
+      "name": "Loop articles"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.link }}",
+        "options": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.jinaAi",
+      "typeVersion": 1,
+      "position": [
+        6256,
+        1776
+      ],
+      "id": "05fd00a1-ac39-4f80-a60d-f8767b40e991",
+      "name": "Jina AI Reader",
+      "credentials": {
+        "jinaAiApi": {
+          "id": "JLKMevKVIBhavB0L",
+          "name": "Jina AI account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1b2c3d4-e5f6-7890-abcd-111111111111",
+              "leftValue": "={{ $json.content }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6496,
+        1648
+      ],
+      "id": "d872a820-792f-439b-999e-dc3f9af7a548",
+      "name": "If Content Check"
+    },
+    {
+      "parameters": {
+        "jsCode": "const MAX_LENGTH = 30000;\nfor (const item of $input.all()) {\n  let content = item.json.content || \"\";\n  if (content.length > MAX_LENGTH) {\n    item.json.content = content.substring(0, MAX_LENGTH) + \"\\n\\n[...Content truncated due to length limits...]\";\n    item.json.is_truncated = true;\n  } else {\n    item.json.is_truncated = false;\n  }\n}\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6736,
+        1520
+      ],
+      "id": "f855ffc2-3c83-4824-86c4-7c8efb43cb9c",
+      "name": "Truncate Content"
+    },
+    {
+      "parameters": {
+        "modelName": "gemini-2.5-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        6928,
+        1840
+      ],
+      "id": "533f6f9b-eb81-4678-9493-55b36086e47e",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PAhTNZYxbVC4ckYV",
+          "name": "Google Gemini(PaLM) Api bohe"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2f07a149-1fd3-4d10-b84b-4d392d2dedee",
+              "name": "text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "a6d653e0-ddde-473b-a42c-727670efe6f5",
+              "name": "title",
+              "value": "={{ $('Loop articles').item.json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "571f5cce-123c-419a-86d4-3ea32a5e06f9",
+              "name": "link",
+              "value": "={{ $('Loop articles').item.json.link }}",
+              "type": "string"
+            },
+            {
+              "id": "b92fa15f-757a-464b-9d22-06ebdf499e9b",
+              "name": "pubDate",
+              "value": "={{ $('Loop articles').item.json.pubDate }}",
+              "type": "string"
+            },
+            {
+              "id": "c8be65c2-f31d-433c-862f-c488e7b32c3d",
+              "name": "categories",
+              "value": "={{ $('Loop articles').item.json.categories }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7216,
+        1648
+      ],
+      "id": "91a673e6-9592-437f-8da5-956da425fc44",
+      "name": "edit result"
+    },
+    {
+      "parameters": {
+        "jsCode": "function escapeForFeishu(str) {\n  if (!str) return '';\n  // JSON.stringify 自动处理: 双引号、反斜杠、换行、制表符、控制字符\n  let escaped = JSON.stringify(str);\n  escaped = escaped.slice(1, -1); // 去掉 stringify 添加的外层引号\n  // 补充：转义单引号\n  escaped = escaped.replace(/'/g, \"\\\\'\");\n  // 补充：过滤残留的 ASCII 控制字符 (U+0000-U+001F)\n  escaped = escaped.replace(/[\\x00-\\x1f]/g, '');\n  return escaped;\n}\n\nfor (const item of $input.all()) {\n  item.json.escapedText = escapeForFeishu(item.json.text);\n  item.json.escapedTitle = escapeForFeishu(item.json.title);\n}\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7336,
+        1648
+      ],
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Escape for Feishu"
+    },
+    {
+      "parameters": {
+        "resource": "bitable",
+        "operation": "bitable:table:record:add",
+        "app_toke": "SJV8b5A4La7DBoskNnsc5d0onud",
+        "table_id": "tblmgUb73D0mJG4h",
+        "body": "={\"fields\":{\"新闻主题\":\"{{$json.escapedTitle}}\",\"链接\":\"{{$json.link}}\",\"新闻日期\":\"{{$json.pubDate}}\",\"新闻内容\":\"{{$json.escapedText}}\",\"新闻分类\":{{$json.categories}}}}"
+      },
+      "type": "n8n-nodes-feishu-lite.feishuNode",
+      "typeVersion": 1,
+      "position": [
+        7576,
+        1648
+      ],
+      "id": "892aab4c-fccb-4e3f-96b2-f578588ee25f",
+      "name": "write sheet",
+      "notesInFlow": false,
+      "credentials": {
+        "feishuCredentialsApi": {
+          "id": "0p6gTjTohSKsosXh",
+          "name": "Feishu account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "写入Excel失败"
+    },
+    {
+      "parameters": {
+        "content": "## get_news_v2 改进说明\n\n**相比 v1 的优化：**\n1. Firecrawl → Jina AI Reader（免费额度 100万 tokens/月）\n2. 移除 SplitInBatches 循环（利用 n8n 原生多 item 处理）\n3. LLM 批量评分（Gemini Flash-Lite）替代静态关键词\n4. 日期过滤集成在 Build scoring prompt 中（最近3天）\n5. 新增内容截断（>30000字符防止 LLM 报错）\n6. 新增内容空值检查（跳过抓取失败的文章）\n7. LLM 评分失败时自动降级为关键词评分 fallback\n\n**导入后需配置凭证：**\n- Jina AI Reader → 选择已有 Jina AI account\n- Google Gemini → 选择已有 Gemini API 凭证（含评分+摘要两个节点）\n- Feishu → 选择已有 Feishu account",
+        "height": 320,
+        "width": 380,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4336,
+        1296
+      ],
+      "id": "51218343-9c8a-4e75-83fd-0e32f05cfcf9",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\n\n// Filter: only keep articles from the last 3 days\nconst now = new Date();\nconst cutoff = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000);\nconst items = allItems.filter(item => {\n  const pubDate = new Date(item.json.pubDate);\n  return !isNaN(pubDate.getTime()) && pubDate >= cutoff && pubDate <= now;\n});\n\nif (items.length === 0) return [];\n\nconst titles = items.map((item, i) =>\n  `${i + 1}. ${item.json.title || 'Untitled'}`\n).join('\\n');\n\nconst prompt = `你是AI新闻编辑。以下是今日RSS聚合的${items.length}条新闻标题。\n请为每条评分(1-10)并识别重复新闻。\n\n评分标准：\n- 重大产品发布/技术突破/开源发布: 8-10\n- 重要行业动态/融资/合作/政策: 5-7\n- 一般技术讨论/教程/评测: 3-4\n- 旧闻/水文/广告/招聘: 1-2\n\n对于内容相同的重复新闻（不同来源报道同一事件），只在最佳标题上给分，其余标记dup为true。\n\n严格以JSON数组返回，不要包含其他文字：\n[{\"index\":1,\"score\":8,\"dup\":false},{\"index\":2,\"score\":3,\"dup\":true},...]\n\n标题列表：\n${titles}`;\n\nreturn [{\n  json: {\n    prompt,\n    originalItems: items.map(item => item.json)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5296,
+        1520
+      ],
+      "id": "dfdd1805-55a9-4288-b690-38c5137eb1d6",
+      "name": "Build scoring prompt"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "messages": {
+          "messageValues": []
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        5488,
+        1520
+      ],
+      "id": "ffdeff66-6cc0-42c0-aac8-c89357d3decd",
+      "name": "LLM Score"
+    },
+    {
+      "parameters": {
+        "jsCode": "const llmText = $json.text || '';\nconst originalItems = $('Build scoring prompt').first().json.originalItems;\n\ntry {\n  // 提取 JSON 数组（容忍 LLM 输出中的额外文字）\n  const jsonMatch = llmText.match(/\\[[\\s\\S]*\\]/);\n  if (!jsonMatch) throw new Error('No JSON array found in LLM response');\n\n  const scores = JSON.parse(jsonMatch[0]);\n\n  // 过滤重复、按分数排序、取 Top 15\n  const ranked = scores\n    .filter(s => !s.dup && s.score >= 3)\n    .sort((a, b) => b.score - a.score)\n    .slice(0, 15)\n    .map(s => ({ json: originalItems[s.index - 1] }))\n    .filter(item => item.json);  // 安全校验\n\n  if (ranked.length === 0) throw new Error('No valid items after parsing');\n  return ranked;\n\n} catch (e) {\n  // ===== FALLBACK: 关键词评分（当前方案） =====\n  const keywords = {\n    'launch': 3, 'release': 3, 'announce': 3, 'unveil': 3,\n    'breakthrough': 3, 'open-source': 3, 'opensource': 3,\n    'gpt': 2, 'claude': 2, 'gemini': 2, 'llama': 2, 'mistral': 2,\n    'openai': 2, 'anthropic': 2, 'deepseek': 2, 'nvidia': 2,\n    'agent': 2, 'multimodal': 2, 'reasoning': 2, 'agi': 2,\n    'benchmark': 1, 'performance': 1, 'training': 1, 'inference': 1,\n    'regulation': 1, 'safety': 1, 'alignment': 1, 'robotics': 1,\n    'autonomous': 1, 'transformer': 1, 'fine-tun': 1, 'dataset': 1\n  };\n  const scored = originalItems.map((json, i) => {\n    const title = (json.title || '').toLowerCase();\n    let score = 0;\n    for (const [kw, pts] of Object.entries(keywords)) {\n      if (title.includes(kw)) score += pts;\n    }\n    return { json, score, titleKey: title.split(/\\s+/).slice(0,5).join(' ') };\n  });\n  const seen = new Set();\n  const deduped = scored.filter(e => {\n    if (seen.has(e.titleKey)) return false;\n    seen.add(e.titleKey);\n    return true;\n  });\n  deduped.sort((a, b) => b.score - a.score);\n  return deduped.slice(0, 15).map(e => ({ json: e.json }));\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5776,
+        1520
+      ],
+      "id": "53b114bd-903f-4e6d-8b2a-2b14ee3d1ec9",
+      "name": "Parse & Select Top 15"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        5424,
+        1728
+      ],
+      "id": "54ded559-05cd-469a-a79e-ca41b47fd0e1",
+      "name": "Google Gemini 2.5-flash-lite",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Y1sRaoVBrg6Y5jzk",
+          "name": "Google Gemini(PaLM) Api hyb"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=请处理以下新闻文章：\n\n标题：{{ $('Loop articles').item.json.title }}\n链接：{{ $('Loop articles').item.json.link }}\n\n正文：\n{{ $json.content }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=你是一位专业的AI行业新闻编辑。请严格按照下方固定模板输出新闻摘要，不要添加任何模板之外的内容。\n\n## 输出模板（必须严格遵循，不得增减章节）\n\n【标题】（重新拟定15字以内的中文标题，突出核心事件和关键数据）\n\n【摘要】（100-150字的完整摘要。必须涵盖：什么事件、谁发起、核心数据/指标、为什么重要。用陈述句，不用疑问句。）\n\n【要点】\n• 要点一（一句话，30字以内，聚焦技术细节或产品特性）\n• 要点二（一句话，30字以内，聚焦市场影响或竞争格局）\n• 要点三（一句话，30字以内，聚焦未来展望或落地时间）\n\n【标签】#AI #领域标签 #公司或机构标签\n\n## 规则\n- 使用中文输出，专有名词保留英文（如 GPT-5、Claude、LLaMA）\n- 数据指标保留原文数值，不做换算\n- 三个要点必须覆盖不同维度，不得重复同一信息\n- 如果原文内容为空或无法解析，仅输出：【标题】原标题翻译\\n【摘要】暂无详细内容。\n- 不要输出任何模板之外的内容（不要输出\"以下是摘要\"之类的引导语）"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        6912,
+        1632
+      ],
+      "id": "0b4b17ca-f631-4b80-80b8-f0abeabf98dd",
+      "name": "Basic LLM Chain summary"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "set rss AI source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "set rss AI source": {
+      "main": [
+        [
+          {
+            "node": "RSS Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read": {
+      "main": [
+        [
+          {
+            "node": "Build scoring prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop articles": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Jina AI Reader",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jina AI Reader": {
+      "main": [
+        [
+          {
+            "node": "If Content Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Content Check": {
+      "main": [
+        [
+          {
+            "node": "Truncate Content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Truncate Content": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "edit result": {
+      "main": [
+        [
+          {
+            "node": "Escape for Feishu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escape for Feishu": {
+      "main": [
+        [
+          {
+            "node": "write sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "write sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain summary",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build scoring prompt": {
+      "main": [
+        [
+          {
+            "node": "LLM Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Score": {
+      "main": [
+        [
+          {
+            "node": "Parse & Select Top 15",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Select Top 15": {
+      "main": [
+        [
+          {
+            "node": "Loop articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini 2.5-flash-lite": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM Score",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain summary": {
+      "main": [
+        [
+          {
+            "node": "edit result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "545e15c7-6a09-4c70-a100-093c3e56ef52",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f0308b25c56c332c675cae572276ffa25531a56d03832c8640e171fd27fb3e39"
+  },
+  "id": "jzK9j7ax4ssv7IBb",
+  "tags": []
+}

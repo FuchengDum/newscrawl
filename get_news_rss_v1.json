@@ -1,0 +1,414 @@
+{
+  "name": "get_news",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 3,
+              "triggerAtMinute": 20
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1136,
+        512
+      ],
+      "id": "a682bd77-5319-466c-8a6d-36f102df91f7",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('set rss AI source').item.json.feed }}",
+        "options": {
+          "ignoreSSL": false
+        }
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -96,
+        544
+      ],
+      "id": "63a69ddc-58b8-44b0-9064-551ff96ea4d6",
+      "name": "RSS Read",
+      "executeOnce": false,
+      "notesInFlow": false,
+      "alwaysOutputData": false,
+      "onError": "continueRegularOutput",
+      "notes": "error"
+    },
+    {
+      "parameters": {
+        "maxItems": "=5"
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        320
+      ],
+      "id": "4aad8ca7-3b2c-4cc5-81ef-cc3b850b83c0",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -544,
+        512
+      ],
+      "id": "3dd69de7-a405-40cd-ae5a-9a6434b46c98",
+      "name": "Loop"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c26c35ee-65b1-4bf9-b249-5799af8dc06e",
+              "leftValue": "={{ $('RSS Read').item.json.pubDate }}",
+              "rightValue": "={{ DateTime.now().minus({days:3}) }}",
+              "operator": {
+                "type": "dateTime",
+                "operation": "afterOrEquals"
+              }
+            },
+            {
+              "id": "cc076920-09ef-4a8e-a224-8e0a7b785e9a",
+              "leftValue": "={{ $('RSS Read').item.json.pubDate }}",
+              "rightValue": "={{ DateTime.now() }}",
+              "operator": {
+                "type": "dateTime",
+                "operation": "beforeOrEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -336,
+        416
+      ],
+      "id": "670927f0-2ff3-46ce-94d4-3608878730f8",
+      "name": "Filter result"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2f07a149-1fd3-4d10-b84b-4d392d2dedee",
+              "name": "text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "a6d653e0-ddde-473b-a42c-727670efe6f5",
+              "name": "title",
+              "value": "={{ $('Limit').item.json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "571f5cce-123c-419a-86d4-3ea32a5e06f9",
+              "name": "link",
+              "value": "={{ $('Limit').item.json.link }}",
+              "type": "string"
+            },
+            {
+              "id": "b92fa15f-757a-464b-9d22-06ebdf499e9b",
+              "name": "pubDate",
+              "value": "={{ $('Limit').item.json.pubDate }}",
+              "type": "string"
+            },
+            {
+              "id": "c8be65c2-f31d-433c-862f-c488e7b32c3d",
+              "name": "categories",
+              "value": "={{ $('Limit').item.json.categories }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        608,
+        464
+      ],
+      "id": "9ce6fff8-0af0-413d-82ab-6a049cb96418",
+      "name": "edit result"
+    },
+    {
+      "parameters": {
+        "resource": "bitable",
+        "operation": "bitable:table:record:add",
+        "app_toke": "SJV8b5A4La7DBoskNnsc5d0onud",
+        "table_id": "tblM7nJIJaYp9wCg",
+        "body": "={\"fields\":{\"title\":\"{{$json.title}}\",\"link\":\"{{$json.link}}\",\"发布日期\":\"{{$json.pubDate}}\",\"content\":\"{{$json.text.toString().replace(/[@!#$%^&*:/\"]/g, '').replace(/[\\n\\\\n]/g,'')}}\",\"分类\":{{$json.categories}}}}"
+      },
+      "type": "n8n-nodes-feishu-lite.feishuNode",
+      "typeVersion": 1,
+      "position": [
+        816,
+        544
+      ],
+      "id": "7784af9f-ea6e-4199-8d78-8b382d0a4e39",
+      "name": "write sheet",
+      "notesInFlow": false,
+      "credentials": {
+        "feishuCredentialsApi": {
+          "id": "0p6gTjTohSKsosXh",
+          "name": "Feishu account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "写入Excel失败"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    \"json\":{\"feed\":\"https://blog.google/technology/ai/rss/\"}\n  },\n  {\n    \"json\":{\"feed\":\"https://venturebeat.com/category/ai/feed/\"}\n  },\n  {\n    \"json\":{\"feed\":\"https://techcrunch.com/category/artificial-intelligence/feed/\"}\n  },\n  {\n    \"json\":{\"feed\":\"https://the-decoder.com/feed/\"}\n  },\n  {\n    \"json\":{\"feed\":\"https://www.technologyreview.com/topic/artificial-intelligence/feed/\"}\n  },\n  {\n    \"json\":{\"feed\":\"https://export.arxiv.org/rss/cs.AI\"}\n  }\n]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        512
+      ],
+      "id": "e61abc08-63e1-4451-94e1-ee103f30ed71",
+      "name": "set rss AI source"
+    },
+    {
+      "parameters": {
+        "content": "1.http request获取网页，也可以通过firecrawl接口调用.firecrawl可以本地搭建\n2.可以通过curl调用大模模型",
+        "height": 128,
+        "width": 272,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        64
+      ],
+      "id": "57626e0c-3c51-4d51-acdc-14e0f6548490",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "operation": "scrape",
+        "url": "={{ $json.link }}",
+        "requestOptions": {}
+      },
+      "type": "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "typeVersion": 1,
+      "position": [
+        96,
+        272
+      ],
+      "id": "a168888f-676b-4f23-91bb-55aff09328fd",
+      "name": "Scrape a url and get its content",
+      "credentials": {
+        "firecrawlApi": {
+          "id": "OvSKIdrzB7moiRKi",
+          "name": "Firecrawl account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Limit').item.json.link }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=【平台就绪+摘要模式】AI新闻处理规范\n1. **内容处理**（可访问时）：\n   ### 第一层：平台速递（≤130字）\n   🔥 **爆点标题**（<15字，含「关键数据」）\n   💎 **核心价值**（≤50字：技术突破+受益方）\n   🚀 **行业影响**（≤30字：规则改变/趋势）\n   🏷️ 话题标签：#AI #[领域] #[机构创新]\n\n   ### 第二层：深度摘要（280-320字）\n   [1] **技术深解**（100字）：\n      - 创新原理（如：动态计算路径）\n      - 性能对比（较前代/竞品提升）\n   [2] **落地路线**（80字）：\n      - 具体应用场景\n      - 部署时间表\n   [3] **生态影响**（100字）：\n      - 产业链变动\n      - 标准/政策演进\n\n3. **输出规范**：\n   - 速递层 → 单段文本（适配社交媒体）\n   - 摘要层 → Markdown分段（保留结构）\n   - 双链接：\n     🔗 速览版：平台适配文案\n     📚 完整版：带摘要内容\n\n2. **数据强化**：\n   ✓ 技术指标用「」标注（如「98.7%」）\n   ✓ 新增「对比数据表」（当有竞品时）\n   ✓ 关键日期用〖 〗标注（如〖Q3部署〗）"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        256,
+        432
+      ],
+      "id": "3dd97042-f4f5-4ec3-9b8c-dd3882fe65f9",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "modelName": "gemini-2.5-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        192,
+        640
+      ],
+      "id": "2b5d4532-6dbe-4300-b280-236985dca5c7",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PAhTNZYxbVC4ckYV",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "set rss AI source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read": {
+      "main": [
+        [
+          {
+            "node": "Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Scrape a url and get its content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop": {
+      "main": [
+        [
+          {
+            "node": "Filter result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "RSS Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter result": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "edit result": {
+      "main": [
+        [
+          {
+            "node": "write sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "set rss AI source": {
+      "main": [
+        [
+          {
+            "node": "Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape a url and get its content": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "edit result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "2bf8944b-8a3c-49ac-9d31-315a1199fe49",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f0308b25c56c332c675cae572276ffa25531a56d03832c8640e171fd27fb3e39"
+  },
+  "id": "shKdD7fp7xjnjynN",
+  "tags": []
+}

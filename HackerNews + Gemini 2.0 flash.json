@@ -1,0 +1,551 @@
+{
+  "name": "Extract & transform HackerNews data to Google Docs using Gemini 2.0 flash",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "8481d533-2ef1-4e97-afe1-8f182d17b390",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        1040,
+        240
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "modelName": "gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "5d88db37-0e3b-4900-af10-78a4f7152231",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "position": [
+        2160,
+        384
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "IYCZ8GWJq6tQqjZG",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Step 1\n\nSet the input field with the \"Count\", how many record needs to be feteched."
+      },
+      "id": "aa74a371-94cf-4a0b-93d9-fd503f1abbed",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1008,
+        -80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Step 2\n\nSet the Google Gemini Credentials as part of the human readable data extraction"
+      },
+      "id": "79674295-f331-4e5b-81d4-09d45aedb883",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1856,
+        -80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Extract Structured Data from Hacker News, Export to Feishu with Google Gemini\n\nHacker news data extraction with Google Gemini. Export the clean data to Feishu.",
+        "height": 240,
+        "width": 540,
+        "color": 6
+      },
+      "id": "d922ad6e-0959-465f-810f-3f0e8d8a3626",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        432,
+        -112
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Step 3\n\nSet the Feishu Credentials for the Hacker News data export"
+      },
+      "id": "79f3eca6-df7d-4e72-816e-b17452f476b5",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2256,
+        -80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Hacker News Data Extraction",
+        "height": 952,
+        "width": 2148,
+        "color": 5
+      },
+      "id": "b3cfee88-735c-4474-b7c0-75511d44e26c",
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        432,
+        -112
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## LLM Usages\n\nGoogle Gemini -> Gemini 2.0 Flash Exp Model",
+        "height": 120,
+        "width": 540,
+        "color": 3
+      },
+      "id": "36302c89-82a4-4098-9ca6-7822bb4d6c33",
+      "name": "Sticky Note5",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        432,
+        128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "267f21f5-d483-4e74-9773-b1d8a02dd984",
+              "name": "author",
+              "type": "string",
+              "value": "={{ $json._highlightResult.author.value }}"
+            },
+            {
+              "id": "667a3ffb-a07c-4f66-b253-a7c64b2aa8e0",
+              "name": "title",
+              "type": "string",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "id": "5efbed92-3dbd-4efa-a480-59dcef2dace8",
+              "name": "url",
+              "value": "={{ $json.url }}",
+              "type": "string"
+            },
+            {
+              "id": "e00ff876-17fe-4ed3-92f3-72e9a4b8bf3b",
+              "name": "story_text",
+              "value": "={{ $json.story_text }}",
+              "type": "string"
+            },
+            {
+              "id": "a8894f73-2c4c-488d-9842-ad10ba636ebf",
+              "name": "created_at",
+              "value": "={{ $json.created_at }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "80c3a993-6c82-43c9-9612-e20e989012ef",
+      "name": "Set the url, author",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1248,
+        272
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        480,
+        352
+      ],
+      "id": "0344b62b-1a7e-4874-b79f-5138020dd061",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.jinaAi",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        256
+      ],
+      "id": "14de0328-3fec-47e9-adb9-31537fddc8ec",
+      "name": "Read URL content",
+      "credentials": {
+        "jinaAiApi": {
+          "id": "kV2DpxVgDGvsO7Vu",
+          "name": "Jina AI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://hn.algolia.com/api/v1/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "AI OR LLM OR GPT OR \"machine learning\" OR OpenAI OR Anthropic"
+            },
+            {
+              "name": "tags",
+              "value": "story"
+            },
+            {
+              "name": "numericFilters",
+              "value": "={{ \"created_at_i > \" + (Math.floor(new Date().getTime() / 1000) - 86400) }} , points > 3"
+            },
+            {
+              "name": "hitsPerPage",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        672,
+        352
+      ],
+      "id": "1e279e9f-41a7-409d-abb6-b5993cb41580",
+      "name": "get hacker news"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\n// 获取 HTTP Request 节点的返回结果\nconst results = $input.first().json.hits;\n\n// 将数组中的每个对象转换成 n8n 的 Item 格式\nreturn results.map(item => {\n  return {\n    json: item\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        352
+      ],
+      "id": "f4e8c1a4-73f7-412a-b6a3-c759f5463b8e",
+      "name": "get items"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "60dc707e-cc0f-4c98-a739-89359178d090",
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "null",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1392,
+        272
+      ],
+      "id": "f44dcfa5-94b5-4c98-b919-d267ab92f0cf",
+      "name": "if has url"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=The following is a Markdown version of a news article. Please remove any remaining \"noise\" (like 'Share this article' text or unrelated links) and return only the core narrative. Keep the tone professional and objective.\n\nContext: {{ $json.content }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "请将上述返回翻译成中文"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "80ed14eb-6ead-46d8-81d0-5502cb5f44db",
+      "name": "Extract Url",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        2160,
+        176
+      ],
+      "retryOnFail": true,
+      "typeVersion": 1.7
+    },
+    {
+      "parameters": {
+        "resource": "bitable",
+        "operation": "bitable:table:record:add",
+        "app_toke": "SJV8b5A4La7DBoskNnsc5d0onud",
+        "table_id": "tblM7nJIJaYp9wCg",
+        "ignore_consistency_check": "={{ true }}",
+        "body": "={\"fields\":{\"title\":\"{{ $('Read URL content').item.json.title.replace(/[@!#$%^&*:/\"]/g, '').replace(/[\\n\\\\n]/g,'')}} }}\",\"link\":\"{{$('Read URL content').item.json.url}}\",\"Hecks创建日期\":\"{{ $('if has url').item.json.created_at }}\",\"发布日期\":\"{{ $('Read URL content').item.json.publishedTime }}\",\"content\":\"{{ $json.text.replace(/[@!#$%^&*:/\"]/g, '').replace(/[\\n\\\\n]/g,'')}}\"}} "
+      },
+      "type": "n8n-nodes-feishu-lite.feishuNode",
+      "typeVersion": 1,
+      "position": [
+        2416,
+        352
+      ],
+      "id": "8a4182a9-8ebb-4b60-8758-ac7d293237f3",
+      "name": "Write to feishu",
+      "credentials": {
+        "feishuCredentialsApi": {
+          "id": "X0YaVPF10OkEQ3Fi",
+          "name": "Feishu account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\n// 设置最大允许字符数，12000字大约消耗 4k-6k Tokens，比较安全且经济\nconst MAX_LENGTH = 12000; \n\nfor (const item of $input.all()) {\n  let content = item.json.text || \"\";\n\n  if (content.length > MAX_LENGTH) {\n    // 截断文本并添加提示，让 AI 知道内容不完整\n    item.json.text = content.substring(0, MAX_LENGTH) + \"\\n\\n[...Content truncated due to length limits...]\";\n    item.json.is_truncated = true; // 标记一下，方便后续排查\n  } else {\n    item.json.is_truncated = false;\n  }\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        208
+      ],
+      "id": "fe3b38cb-4e5b-40cf-802e-2bef660d17b6",
+      "name": "防止内容过长报错（Code 节点）"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f4ec5332-c12c-431e-8ae6-c6a8aacbf483",
+              "leftValue": "={{ $json.content }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1760,
+        256
+      ],
+      "id": "a2c715a4-78fe-4782-ad64-6c77225d01bb",
+      "name": "If content isEmpty"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Set the url, author",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set the url, author": {
+      "main": [
+        [
+          {
+            "node": "if has url",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extract Url",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "get hacker news",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read URL content": {
+      "main": [
+        [
+          {
+            "node": "If content isEmpty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get hacker news": {
+      "main": [
+        [
+          {
+            "node": "get items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get items": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if has url": {
+      "main": [
+        [
+          {
+            "node": "Read URL content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Url": {
+      "main": [
+        [
+          {
+            "node": "Write to feishu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to feishu": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "防止内容过长报错（Code 节点）": {
+      "main": [
+        [
+          {
+            "node": "Extract Url",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If content isEmpty": {
+      "main": [
+        [
+          {
+            "node": "防止内容过长报错（Code 节点）",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "2c702508-448e-4b77-a46e-c692e9a4718f",
+  "meta": {
+    "templateId": "5677",
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4d0c0bd3cd85295d6cde003da6519b26c92e03b9d8229688a472ed638b2647e3"
+  },
+  "id": "zeim6iGm4eDKR6Vj",
+  "tags": []
+}

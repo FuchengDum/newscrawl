@@ -1,0 +1,72 @@
+<h2>选择您的看板视觉风格与卡片信息设计</h2>
+<p class="subtitle">对于卡片网格展示（方案 B），我们需要确定其视觉色彩主题，以及卡片上应该展示的特征标签。</p>
+
+<div class="options">
+  <div class="option" data-choice="style-dark-glass" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>方案 A: 现代暗黑科技风 (Dark Glassmorphism) ── 推荐 🌟</h3>
+      <p>深灰色/黑色背景搭配半透明的毛玻璃卡片（微弱的白色边框和投影）。商业价值评分采用高亮荧光色，呈现一种高端、极富科技感的AI分析师工具调性。</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="style-light-clean" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>方案 B: 简约明亮专业风 (Minimalist Clean Light)</h3>
+      <p>柔和的浅灰色背景配合纯白卡片，精致的细边框与清爽的无衬线字体。视觉感受干净严谨，更偏向传统 SaaS 系统或专业商业分析看板。</p>
+    </div>
+  </div>
+</div>
+
+<br><br>
+
+<div class="section">
+  <h3>卡片视觉概念预览</h3>
+  <br>
+  <div class="split">
+    <!-- LEFT: Dark Glass Theme Mockup -->
+    <div class="mockup" style="background: #141416; border-color: #2d2d2f;">
+      <div class="mockup-header" style="background: #1d1d1f; border-color: #2d2d2f; color: #86868b;">方案 A 预览 (暗黑科技风)</div>
+      <div class="mockup-body" style="background: #141416; padding: 1rem;">
+        
+        <!-- Glass Card Example -->
+        <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1rem; color: #f5f5f7; box-shadow: 0 4px 20px rgba(0,0,0,0.3); backdrop-filter: blur(10px);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span style="background: #ff2d55; color: white; font-size: 0.65rem; font-weight: bold; padding: 0.15rem 0.4rem; border-radius: 4px;">微博热搜 · #白领加班报销难#</span>
+            <span style="color: #30d158; font-weight: bold; font-size: 0.95rem;">9.2 分</span>
+          </div>
+          <h4 style="margin: 0.25rem 0; font-size: 0.9rem; font-weight: bold;">💡 AI 构想：加班发票自动生成小程序</h4>
+          <p style="color: #86868b; font-size: 0.75rem; margin-top: 0.4rem; line-height: 1.4;">一键扫描和OCR分类发票，针对需要自行垫付报销的高频痛点，自动匹配公司财务要求模板。</p>
+          <div style="display: flex; gap: 0.4rem; margin-top: 0.6rem;">
+            <span style="border: 1px solid rgba(255,255,255,0.2); font-size: 0.65rem; color: #aeaeb2; padding: 0.1rem 0.3rem; border-radius: 4px;">🎯 职场白领</span>
+            <span style="border: 1px solid rgba(255,255,255,0.2); font-size: 0.65rem; color: #aeaeb2; padding: 0.1rem 0.3rem; border-radius: 4px;">🛠️ 难度：简单</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT: Light Clean Theme Mockup -->
+    <div class="mockup" style="background: #f5f5f7; border-color: #d1d1d6;">
+      <div class="mockup-header" style="background: #e5e5e7; border-color: #d1d1d6; color: #1d1d1f;">方案 B 预览 (明亮专业风)</div>
+      <div class="mockup-body" style="background: #f5f5f7; padding: 1rem;">
+        
+        <!-- Light Card Example -->
+        <div style="background: #ffffff; border: 1px solid #d1d1d6; border-radius: 12px; padding: 1rem; color: #1d1d1f; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span style="background: #e8f4fd; color: #0071e3; font-size: 0.65rem; font-weight: bold; padding: 0.15rem 0.4rem; border-radius: 4px;">微博热搜 · #白领加班报销难#</span>
+            <span style="color: #34c759; font-weight: bold; font-size: 0.95rem;">9.2 分</span>
+          </div>
+          <h4 style="margin: 0.25rem 0; font-size: 0.9rem; font-weight: bold; color: #1d1d1f;">💡 AI 构想：加班发票自动生成小程序</h4>
+          <p style="color: #86868b; font-size: 0.75rem; margin-top: 0.4rem; line-height: 1.4;">一键扫描和OCR分类发票，针对需要自行垫付报销的高频痛点，自动匹配公司财务要求模板。</p>
+          <div style="display: flex; gap: 0.4rem; margin-top: 0.6rem;">
+            <span style="background: #f5f5f7; font-size: 0.65rem; color: #86868b; padding: 0.1rem 0.3rem; border-radius: 4px;">🎯 职场白领</span>
+            <span style="background: #f5f5f7; font-size: 0.65rem; color: #86868b; padding: 0.1rem 0.3rem; border-radius: 4px;">🛠️ 难度：简单</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
