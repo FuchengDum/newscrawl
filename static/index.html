@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔥 国内热点需求挖掘看板</title>
+    <meta name="description" content="实时挖掘微博、知乎热点背后的商业开发机会与痛点解决方案">
+    <!-- Google Fonts for premium typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="dashboard-header">
+        <div class="logo-area">
+            <h1>🔥 舆情热点需求捕手</h1>
+            <span class="tagline">实时挖掘微博、知乎热点背后的商业产品契机</span>
+        </div>
+        <div class="controls-area">
+            <span id="warning-badge" class="warning-badge hide">⚠️ 核心API流控，已启用RSSHub降级数据</span>
+            <button id="refresh-btn" class="action-btn">🔄 刷新抓取热点</button>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <aside class="sidebar">
+            <div class="filter-section">
+                <h3>📊 来源平台</h3>
+                <div class="filter-options" id="platform-filters">
+                    <label class="filter-label active" data-platform="all">全部</label>
+                    <label class="filter-label" data-platform="weibo">微博热搜</label>
+                    <label class="filter-label" data-platform="zhihu">知乎热榜</label>
+                    <label class="filter-label" data-platform="zhihu_pin">知乎想法</label>
+                </div>
+            </div>
+
+            <div class="filter-section">
+                <h3>🛠️ 开发难度</h3>
+                <div class="filter-options" id="difficulty-filters">
+                    <label class="filter-label active" data-difficulty="all">全部</label>
+                    <label class="filter-label" data-difficulty="easy">简单 (插件/脚本)</label>
+                    <label class="filter-label" data-difficulty="medium">中等 (小程序/网站)</label>
+                    <label class="filter-label" data-difficulty="hard">困难 (深研/AI/大数据)</label>
+                </div>
+            </div>
+
+            <div class="filter-section toggle-wrapper">
+                <label class="switch-container">
+                    <input type="checkbox" id="show-low-value-toggle">
+                    <span class="slider"></span>
+                </label>
+                <span class="toggle-text">显示 AI 低价值过滤项</span>
+            </div>
+        </aside>
+
+        <main class="content-grid-wrapper">
+            <div id="cards-grid" class="cards-grid">
+                <!-- 卡片由 JavaScript 动态生成 -->
+            </div>
+        </main>
+    </div>
+
+    <!-- 详情 Modal -->
+    <div id="detail-modal" class="modal-overlay hide">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span id="modal-platform" class="modal-platform platform-badge">微博热搜</span>
+                <button id="close-modal-btn" class="close-btn" aria-label="关闭详情">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h2 id="modal-title">热点事件标题加载中...</h2>
+                <a id="modal-url" href="#" target="_blank" class="source-link">🔗 查看原始探讨链接</a>
+                
+                <hr class="modal-divider">
+
+                <div class="analysis-box">
+                    <div class="analysis-item">
+                        <span class="label">🎯 目标客群 (Target Audience)</span>
+                        <p id="modal-audience">加载中...</p>
+                    </div>
+                    <div class="analysis-item">
+                        <span class="label">😭 核心痛点 (User Pain Point)</span>
+                        <p id="modal-pain">加载中...</p>
+                    </div>
+                    <div class="analysis-item">
+                        <span class="label">💡 产品构想 (Product Concept)</span>
+                        <p id="modal-concept">加载中...</p>
+                    </div>
+                </div>
+
+                <div class="analysis-footer">
+                    <div class="footer-stat">
+                        <span class="label">开发难度</span>
+                        <span id="modal-difficulty" class="val">中等</span>
+                    </div>
+                    <div class="footer-stat">
+                        <span class="label">商业开发价值评分</span>
+                        <span id="modal-score" class="val">9.5 分</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
