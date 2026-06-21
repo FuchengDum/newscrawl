@@ -29,8 +29,9 @@ def fetch_weibo_hot():
     # 1. 握手访问主页获取 Cookie
     try:
         opener.open("https://weibo.com/", timeout=8)
-    except Exception:
+    except Exception as e:
         # 握手失败，直接走 RSSHub 降级
+        print(f"Warning: Weibo home page handshake failed ({e}). Falling back to RSSHub mirrors...")
         return fetch_weibo_rss_fallback()
 
     # 2. 带 Cookie 请求 AJAX 接口
@@ -56,7 +57,8 @@ def fetch_weibo_hot():
                 popularity = item.get("num", 0)
                 results.append({"title": title, "url": url_link, "platform": "weibo", "popularity": popularity})
             return results, False  # 抓取成功，未启用降级
-    except Exception:
+    except Exception as e:
+        print(f"Warning: Weibo AJAX API request failed ({e}). Falling back to RSSHub mirrors...")
         return fetch_weibo_rss_fallback()
 
 def fetch_weibo_rss_fallback():
@@ -75,31 +77,13 @@ def fetch_weibo_rss_fallback():
                     results.append({"title": title, "url": link, "platform": "weibo", "popularity": 100000 - idx})
                 if results:
                     return results, True  # 降级成功
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Failed to fetch Weibo hot from RSSHub mirror {mirror} ({e}).")
             continue
     return [], True
 
 def fetch_zhihu_hot():
-    # 知乎 API (api.zhihu.com) 存在严苛的 IP 访问流控，直接在本地请求频繁报错 403/401。
-    # 因此，我们优先从公共 RSSHub 镜像中读取（镜像自带缓存，极不容易被封），如果失败再尝试直接请求 API 降级。
-    for mirror in RSSHUB_MIRRORS:
-        rss_url = f"{mirror}/zhihu/hot"
-        try:
-            req = urllib.request.Request(rss_url, headers=HEADERS)
-            with urllib.request.urlopen(req, timeout=8) as res:
-                soup = BeautifulSoup(res.read(), "xml")
-                items = soup.find_all("item")
-                results = []
-                for idx, item in enumerate(items[:50]):
-                    title = item.title.text if item.title else "知乎热点项"
-                    link = item.link.text if item.link else "https://www.zhihu.com"
-                    results.append({"title": title, "url": link, "platform": "zhihu", "popularity": 500000 - idx * 10000})
-                if results:
-                    return results, False  # 走公共镜像缓存也是常规且推荐的方案
-        except Exception:
-            continue
-    
-    # 如果镜像全部失败，最后尝试直接调用 client API（有 403 风险）
+    # 1. Try official API first
     try:
         req = urllib.request.Request("https://api.zhihu.com/topstory/hot-lists/total?limit=50", headers=HEADERS)
         with urllib.request.urlopen(req, timeout=8) as res:
@@ -115,13 +99,34 @@ def fetch_zhihu_hot():
                 url_link = f"https://www.zhihu.com/question/{id_num}" if id_num else "https://www.zhihu.com"
                 metrics = item.get("detail_text", "0")
                 try:
-                    popularity = int(metrics.replace(" 万热度", "").replace("万", "").strip()) * 10000
+                    val_str = metrics.replace(" 万热度", "").replace("万", "").strip()
+                    popularity = int(float(val_str) * 10000)
                 except ValueError:
                     popularity = 500000
                 results.append({"title": title, "url": url_link, "platform": "zhihu", "popularity": popularity})
-            return results, True  # 标记为降级/异常源
-    except Exception:
-        return [], True
+            return results, False  # success, not fallback
+    except Exception as e:
+        print(f"Warning: Zhihu official API failed ({e}). Falling back to RSSHub mirrors...")
+    
+    # 2. Fallback to RSSHub mirrors
+    for mirror in RSSHUB_MIRRORS:
+        rss_url = f"{mirror}/zhihu/hot"
+        try:
+            req = urllib.request.Request(rss_url, headers=HEADERS)
+            with urllib.request.urlopen(req, timeout=8) as res:
+                soup = BeautifulSoup(res.read(), "xml")
+                items = soup.find_all("item")
+                results = []
+                for idx, item in enumerate(items[:50]):
+                    title = item.title.text if item.title else "知乎热点项"
+                    link = item.link.text if item.link else "https://www.zhihu.com"
+                    results.append({"title": title, "url": link, "platform": "zhihu", "popularity": 500000 - idx * 10000})
+                if results:
+                    return results, True  # fallback is True
+        except Exception as e:
+            print(f"Warning: Failed to fetch Zhihu hot from RSSHub mirror {mirror} ({e}).")
+            continue
+    return [], True
 
 def fetch_zhihu_pins():
     # 获取知乎想法（24小时新闻汇总）
@@ -139,7 +144,8 @@ def fetch_zhihu_pins():
                     results.append({"title": title, "url": link, "platform": "zhihu_pin", "popularity": 300000 - idx * 5000})
                 if results:
                     return results, False  # 正常获取
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Failed to fetch Zhihu pins from RSSHub mirror {mirror} ({e}).")
             continue
     return [], True  # 所有镜像失败，返回异常
 
@@ -163,6 +169,9 @@ def crawl_and_save_all():
     for item in pin_list:
         if database.save_hot_event(item["title"], item["url"], item["platform"], item["popularity"]):
             pin_count += 1
+            
+    # 自动清理已保存完事件中 7 天前的未分析事件
+    database.delete_old_unanalyzed_events()
             
     return {
         "weibo_inserted": weibo_count,
