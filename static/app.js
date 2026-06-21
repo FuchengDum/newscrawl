@@ -147,10 +147,10 @@ function renderGrid() {
             isClickable = true;
         } else if (e.status === "failed") {
             statusHtml = `<span class="status-badge failed">分析失败</span>`;
-            btnHtml = `<button class="analyze-btn" onclick="startAnalysis(event, ${e.id}, '${escapeHtml(e.title)}', '${e.platform}')">🔄 重试</button>`;
+            btnHtml = `<button class="analyze-btn">🔄 重试</button>`;
         } else {
             statusHtml = `<span class="status-badge pending">待分析</span>`;
-            btnHtml = `<button class="analyze-btn" onclick="startAnalysis(event, ${e.id}, '${escapeHtml(e.title)}', '${e.platform}')">🧠 AI 分析</button>`;
+            btnHtml = `<button class="analyze-btn">🧠 AI 分析</button>`;
         }
         
         // Platform localized text
@@ -175,6 +175,13 @@ function renderGrid() {
                 ${btnHtml}
             </div>
         `;
+        
+        const analyzeBtn = card.querySelector(".analyze-btn");
+        if (analyzeBtn) {
+            analyzeBtn.addEventListener("click", (event) => {
+                startAnalysis(event, e.id, e.title, e.platform);
+            });
+        }
         
         if (isClickable) {
             card.style.cursor = "pointer";
