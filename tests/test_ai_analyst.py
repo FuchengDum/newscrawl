@@ -8,7 +8,7 @@ def test_mock_analysis_without_key():
     ai_analyst.api_key = ""
     res = ai_analyst.analyze_hot_topic("加班报销难", "weibo")
     assert res["has_value"] is False
-    assert "密钥" in res["pain_point"]
+    assert "GEMINI_API_KEY" in res["pain_point"]
 
 def test_ai_generation_output():
     # 如果当前环境有可用的 KEY，进行真实集成测试
