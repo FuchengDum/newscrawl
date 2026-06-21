@@ -66,7 +66,9 @@ def get_pending_events():
     conn = get_db_connection()
     try:
         rows = conn.execute("""
-            SELECT h.id, h.title, h.url, h.platform, h.popularity, n.status 
+            SELECT h.id, h.title, h.url, h.platform, h.popularity, 
+                   n.status, n.value_score, n.target_audience, n.pain_point, 
+                   n.product_concept, n.difficulty, n.analysis_summary, n.analyzed_at
             FROM hot_events h
             JOIN need_analysis n ON h.id = n.event_id
             ORDER BY h.popularity DESC
@@ -74,6 +76,15 @@ def get_pending_events():
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+def event_exists(event_id: int) -> bool:
+    conn = get_db_connection()
+    try:
+        cursor = conn.execute("SELECT 1 FROM hot_events WHERE id = ?", (event_id,))
+        return cursor.fetchone() is not None
+    finally:
+        conn.close()
+
 
 def update_analysis(event_id, a):
     # a 是字典，包含 has_value, value_score, target_audience, pain_point, product_concept, difficulty, analysis_summary

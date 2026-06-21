@@ -66,38 +66,49 @@ def test_analyze_event_success():
         "difficulty": "medium",
         "analysis_summary": "Summary text"
     }
-    with patch("ai_analyst.trigger_event_analysis", return_value=mock_analysis) as mock_trigger:
+    with patch("ai_analyst.trigger_event_analysis", return_value=mock_analysis) as mock_trigger, \
+         patch("database.event_exists", return_value=True) as mock_exists:
         client = TestClient(app)
         response = client.post(f"/api/events/{event_id}/analyze", json=payload)
         assert response.status_code == 200
         assert response.json() == {"status": "success", "analysis": mock_analysis}
         mock_trigger.assert_called_once_with(event_id, payload["title"], payload["platform"])
+        mock_exists.assert_called_once_with(event_id)
 
 def test_analyze_event_missing_payload():
     client = TestClient(app)
     # Missing platform
     response = client.post("/api/events/42/analyze", json={"title": "AI is taking over"})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Missing title or platform"
+    assert response.status_code == 422
 
     # Missing title
     response = client.post("/api/events/42/analyze", json={"platform": "weibo"})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Missing title or platform"
+    assert response.status_code == 422
 
     # Empty payload
     response = client.post("/api/events/42/analyze", json={})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Missing title or platform"
+    assert response.status_code == 422
+
+def test_analyze_event_not_found():
+    event_id = 42
+    payload = {"title": "AI is taking over", "platform": "weibo"}
+    with patch("database.event_exists", return_value=False) as mock_exists:
+        client = TestClient(app)
+        response = client.post(f"/api/events/{event_id}/analyze", json=payload)
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Event not found"
+        mock_exists.assert_called_once_with(event_id)
 
 def test_analyze_event_error():
     event_id = 42
     payload = {"title": "AI is taking over", "platform": "weibo"}
-    with patch("ai_analyst.trigger_event_analysis", side_effect=Exception("Gemini API Quota Exceeded")):
+    with patch("ai_analyst.trigger_event_analysis", side_effect=Exception("Gemini API Quota Exceeded")) as mock_trigger, \
+         patch("database.event_exists", return_value=True) as mock_exists:
         client = TestClient(app)
         response = client.post(f"/api/events/{event_id}/analyze", json=payload)
         assert response.status_code == 500
         assert response.json()["detail"] == "Gemini API Quota Exceeded"
+        mock_exists.assert_called_once_with(event_id)
 
 def test_static_files():
     # Write a temporary file in the static directory to test serving

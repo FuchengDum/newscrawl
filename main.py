@@ -1,18 +1,25 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 import database
 import crawler
 import ai_analyst
 
-app = FastAPI(title="Hot News Needs Miner")
+class AnalyzePayload(BaseModel):
+    title: str
+    platform: str
 
-# 启动时初始化数据库，并进行自动数据清理
-@app.on_event("startup")
-def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 启动时初始化数据库，并进行自动数据清理
     database.init_db()
     database.delete_old_unanalyzed_events()
+    yield
+
+app = FastAPI(title="Hot News Needs Miner", lifespan=lifespan)
 
 @app.get("/api/events")
 def get_events():
@@ -34,13 +41,11 @@ def trigger_crawl(background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/events/{event_id}/analyze")
-def analyze_event(event_id: int, payload: dict):
-    title = payload.get("title")
-    platform = payload.get("platform")
-    if not title or not platform:
-        raise HTTPException(status_code=400, detail="Missing title or platform")
+def analyze_event(event_id: int, payload: AnalyzePayload):
+    if not database.event_exists(event_id):
+        raise HTTPException(status_code=404, detail="Event not found")
     try:
-        analysis = ai_analyst.trigger_event_analysis(event_id, title, platform)
+        analysis = ai_analyst.trigger_event_analysis(event_id, payload.title, payload.platform)
         return {"status": "success", "analysis": analysis}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
