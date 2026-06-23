@@ -59,6 +59,7 @@
     uvicorn>=0.22.0
     requests>=2.31.0
     beautifulsoup4>=4.12.2
+    lxml>=4.9.0
     google-generativeai>=0.3.0
     python-dotenv>=1.0.0
     pytest>=7.3.0
@@ -365,10 +366,31 @@
         except Exception:
             return [], True
 
+    def fetch_zhihu_pins():
+        # 获取知乎想法（24小时新闻汇总）
+        for mirror in RSSHUB_MIRRORS:
+            rss_url = f"{mirror}/zhihu/pin/daily"
+            try:
+                req = urllib.request.Request(rss_url, headers=HEADERS)
+                with urllib.request.urlopen(req, timeout=8) as res:
+                    soup = BeautifulSoup(res.read(), "xml")
+                    items = soup.find_all("item")
+                    results = []
+                    for idx, item in enumerate(items[:50]):
+                        title = item.title.text if item.title else "知乎想法项"
+                        link = item.link.text if item.link else "https://www.zhihu.com"
+                        results.append({"title": title, "url": link, "platform": "zhihu_pin", "popularity": 300000 - idx * 5000})
+                    if results:
+                        return results, False  # 正常获取
+            except Exception:
+                continue
+        return [], True  # 所有镜像失败，返回异常
+
     def crawl_and_save_all():
         database.init_db()
         weibo_list, weibo_fallback = fetch_weibo_hot()
         zhihu_list, zhihu_fallback = fetch_zhihu_hot()
+        pin_list, pin_fallback = fetch_zhihu_pins()
         
         weibo_count = 0
         for item in weibo_list:
@@ -380,11 +402,18 @@
             if database.save_hot_event(item["title"], item["url"], item["platform"], item["popularity"]):
                 zhihu_count += 1
                 
+        pin_count = 0
+        for item in pin_list:
+            if database.save_hot_event(item["title"], item["url"], item["platform"], item["popularity"]):
+                pin_count += 1
+                
         return {
             "weibo_inserted": weibo_count,
             "weibo_fallback": weibo_fallback,
             "zhihu_inserted": zhihu_count,
-            "zhihu_fallback": zhihu_fallback
+            "zhihu_fallback": zhihu_fallback,
+            "zhihu_pin_inserted": pin_count,
+            "zhihu_pin_fallback": pin_fallback
         }
     ```
 
@@ -414,6 +443,7 @@
         summary = crawler.crawl_and_save_all()
         assert "weibo_inserted" in summary
         assert "zhihu_inserted" in summary
+        assert "zhihu_pin_inserted" in summary
     ```
 
 - [ ] **Step 3: 运行爬虫单元测试**

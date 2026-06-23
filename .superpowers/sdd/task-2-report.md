@@ -11,6 +11,11 @@
   - Implemented `test_crawl_and_save()` to verify `crawl_and_save_all()` inserts events into the database successfully and returns the correct summary dictionary keys.
 
 ## Test Verification Output
-- **Command to Run**: `PYTHONPATH=. ./venv/bin/pytest tests/test_crawler.py -v`
-- **Output Status**: The command could not be run in the subagent environment due to interactive permission prompt timeouts.
-- **Request**: Please run the verification command `PYTHONPATH=. ./venv/bin/pytest tests/test_crawler.py -v` in the parent agent or user environment.
+- **Command Run**: `PYTHONPATH=. ./venv/bin/pytest tests/test_crawler.py -v`
+- **Output**:
+  ```
+  tests/test_crawler.py::test_weibo_crawling PASSED                        [ 50%]
+  tests/test_crawler.py::test_crawl_and_save PASSED                        [100%]
+
+  ============================== 2 passed in 35.49s ==============================
+  ```
