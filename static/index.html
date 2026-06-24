@@ -19,6 +19,8 @@
         </div>
         <div class="controls-area">
             <span id="warning-badge" class="warning-badge hide">⚠️ 核心API流控，已启用RSSHub降级数据</span>
+            <button id="batch-analyze-btn" class="action-btn batch-btn" title="批量分析当前日期的待分析事件">⚡ 批量分析</button>
+            <button id="generate-report-btn" class="action-btn report-btn" title="生成当前日期的高价值热点日报">📄 生成日报</button>
             <button id="refresh-btn" class="action-btn">🔄 刷新抓取热点</button>
         </div>
     </header>
@@ -26,12 +28,30 @@
     <div class="main-layout">
         <aside class="sidebar">
             <div class="filter-section">
+                <h3>📅 日期</h3>
+                <div class="filter-options" id="date-filters">
+                    <!-- 由 JS 动态填充 -->
+                </div>
+            </div>
+
+            <div class="filter-section">
                 <h3>📊 来源平台</h3>
                 <div class="filter-options" id="platform-filters">
                     <label class="filter-label active" data-platform="all">全部</label>
                     <label class="filter-label" data-platform="weibo">微博热搜</label>
                     <label class="filter-label" data-platform="zhihu">知乎热榜</label>
                     <label class="filter-label" data-platform="zhihu_pin">知乎想法</label>
+                </div>
+            </div>
+
+            <div class="filter-section">
+                <h3>📋 分析状态</h3>
+                <div class="filter-options" id="status-filters">
+                    <label class="filter-label active" data-status="all">全部</label>
+                    <label class="filter-label" data-status="pending">待分析</label>
+                    <label class="filter-label" data-status="analyzed">已分析</label>
+                    <label class="filter-label" data-status="low_value">低价值</label>
+                    <label class="filter-label" data-status="failed">失败</label>
                 </div>
             </div>
 
@@ -45,7 +65,7 @@
                 </div>
             </div>
 
-            <div class="filter-section toggle-wrapper">
+            <div class="filter-section toggle-wrapper" id="toggle-wrapper">
                 <label class="switch-container">
                     <input type="checkbox" id="show-low-value-toggle">
                     <span class="slider"></span>
@@ -98,6 +118,38 @@
                         <span class="label">商业开发价值评分</span>
                         <span id="modal-score" class="val">9.5 分</span>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量分析进度浮层 -->
+    <div id="batch-progress" class="batch-progress-toast hide">
+        <div class="batch-progress-inner">
+            <div class="batch-progress-header">
+                <span class="batch-progress-title">⚡ 批量分析进行中</span>
+                <span id="batch-progress-count" class="batch-progress-count">0 / 0</span>
+            </div>
+            <div class="progress-bar">
+                <div id="batch-progress-fill" class="progress-fill"></div>
+            </div>
+            <div id="batch-progress-detail" class="batch-progress-detail"></div>
+        </div>
+    </div>
+
+    <!-- 日报预览 Modal -->
+    <div id="report-modal" class="modal-overlay hide">
+        <div class="modal-card report-modal-card">
+            <div class="modal-header">
+                <span class="modal-platform platform-badge report-badge">📄 日报预览</span>
+                <div class="report-header-actions">
+                    <button id="download-report-btn" class="action-btn download-btn">⬇ 下载 Markdown</button>
+                    <button id="close-report-modal-btn" class="close-btn" aria-label="关闭日报">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body report-body">
+                <div id="report-html-content" class="report-content">
+                    <!-- 由 JS 填充 HTML 内容 -->
                 </div>
             </div>
         </div>

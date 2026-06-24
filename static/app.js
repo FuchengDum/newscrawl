@@ -1,13 +1,24 @@
 let allEvents = [];
 let forceShowWarning = false;
+let selectedDate = null;
+let selectedStatus = 'all';
+let selectedDifficulty = 'all';
+let selectedPlatform = 'all';
+let availableDates = [];
+let batchPollTimer = null;
+let reportMarkdownCache = '';
 
 // Initialization
 document.addEventListener("DOMContentLoaded", () => {
-    loadEvents();
+    loadDates();
     
     document.getElementById("refresh-btn").addEventListener("click", triggerCrawl);
     document.getElementById("close-modal-btn").addEventListener("click", closeModal);
-    document.getElementById("show-low-value-toggle").addEventListener("change", renderGrid);
+    document.getElementById("show-low-value-toggle").addEventListener("change", loadEvents);
+    document.getElementById("batch-analyze-btn").addEventListener("click", batchAnalyze);
+    document.getElementById("generate-report-btn").addEventListener("click", generateReport);
+    document.getElementById("close-report-modal-btn").addEventListener("click", closeReportModal);
+    document.getElementById("download-report-btn").addEventListener("click", downloadReport);
     
     // Close modal when clicking outside the modal content
     const modalOverlay = document.getElementById("detail-modal");
@@ -17,10 +28,18 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    const reportOverlay = document.getElementById("report-modal");
+    reportOverlay.addEventListener("click", (e) => {
+        if (e.target === reportOverlay) {
+            closeReportModal();
+        }
+    });
+
     // Close modal with Escape key
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
             closeModal();
+            closeReportModal();
         }
     });
     
@@ -29,7 +48,19 @@ document.addEventListener("DOMContentLoaded", () => {
         el.addEventListener("click", (e) => {
             document.querySelectorAll("#platform-filters .filter-label").forEach(lbl => lbl.classList.remove("active"));
             e.target.classList.add("active");
-            renderGrid();
+            selectedPlatform = e.target.dataset.platform;
+            loadEvents();
+        });
+    });
+    
+    // Status filters binding
+    document.querySelectorAll("#status-filters .filter-label").forEach(el => {
+        el.addEventListener("click", (e) => {
+            document.querySelectorAll("#status-filters .filter-label").forEach(lbl => lbl.classList.remove("active"));
+            e.target.classList.add("active");
+            selectedStatus = e.target.dataset.status;
+            updateToggleState();
+            loadEvents();
         });
     });
     
@@ -38,17 +69,92 @@ document.addEventListener("DOMContentLoaded", () => {
         el.addEventListener("click", (e) => {
             document.querySelectorAll("#difficulty-filters .filter-label").forEach(lbl => lbl.classList.remove("active"));
             e.target.classList.add("active");
-            renderGrid();
+            selectedDifficulty = e.target.dataset.difficulty;
+            loadEvents();
         });
     });
 });
+
+function updateToggleState() {
+    const toggle = document.getElementById("show-low-value-toggle");
+    const wrapper = document.getElementById("toggle-wrapper");
+    if (selectedStatus !== 'all') {
+        toggle.disabled = true;
+        wrapper.classList.add("toggle-disabled");
+    } else {
+        toggle.disabled = false;
+        wrapper.classList.remove("toggle-disabled");
+    }
+}
+
+async function loadDates() {
+    try {
+        const res = await fetch("/api/dates");
+        const data = await res.json();
+        availableDates = data.dates || [];
+        renderDateFilters();
+        // After rendering dates, load events
+        loadEvents();
+    } catch (e) {
+        console.error("Failed to load dates:", e);
+        loadEvents();
+    }
+}
+
+function renderDateFilters() {
+    const container = document.getElementById("date-filters");
+    container.innerHTML = "";
+
+    if (availableDates.length === 0) {
+        container.innerHTML = '<span class="no-data-hint">暂无数据</span>';
+        return;
+    }
+
+    // Determine today's date in UTC+8
+    const now = new Date();
+    const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    const todayStr = utc8.toISOString().slice(0, 10);
+
+    // Default: select today if available, otherwise the most recent date
+    if (availableDates.includes(todayStr)) {
+        selectedDate = todayStr;
+    } else {
+        selectedDate = availableDates[0]; // most recent
+    }
+
+    availableDates.forEach(d => {
+        const label = document.createElement("label");
+        label.className = "filter-label" + (d === selectedDate ? " active" : "");
+        label.dataset.date = d;
+        // Format display: show weekday
+        const dateObj = new Date(d + "T00:00:00+08:00");
+        const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
+        const weekday = weekdays[dateObj.getDay()];
+        label.textContent = `${d} (周${weekday})`;
+        label.addEventListener("click", () => {
+            document.querySelectorAll("#date-filters .filter-label").forEach(lbl => lbl.classList.remove("active"));
+            label.classList.add("active");
+            selectedDate = d;
+            loadEvents();
+        });
+        container.appendChild(label);
+    });
+}
 
 async function loadEvents() {
     const grid = document.getElementById("cards-grid");
     grid.innerHTML = '<div class="grid-loading" style="color: var(--text-sub); grid-column: 1/-1; text-align: center; padding: 5rem 1rem; font-size: 1.1rem; letter-spacing: 0.05em;">正在获取热点数据，请稍候...</div>';
     
     try {
-        const res = await fetch("/api/events");
+        const showLowValue = document.getElementById("show-low-value-toggle").checked;
+        const params = new URLSearchParams();
+        if (selectedDate) params.set("date", selectedDate);
+        if (selectedPlatform !== "all") params.set("platform", selectedPlatform);
+        if (selectedStatus !== "all") params.set("status", selectedStatus);
+        if (selectedDifficulty !== "all") params.set("difficulty", selectedDifficulty);
+        params.set("show_low_value", showLowValue);
+
+        const res = await fetch(`/api/events?${params.toString()}`);
         allEvents = await res.json();
         
         // Detect if fallback mirror was used based on Weibo fallback popularity range
@@ -85,7 +191,8 @@ async function triggerCrawl() {
             }
         }
         
-        await loadEvents();
+        // Reload dates in case new dates appeared
+        await loadDates();
     } catch (e) {
         alert("刷新抓取失败，请检查网络或后端服务。");
     } finally {
@@ -98,23 +205,8 @@ function renderGrid() {
     const grid = document.getElementById("cards-grid");
     grid.innerHTML = "";
     
-    // Read filter configuration
-    const selectedPlatform = document.querySelector("#platform-filters .filter-label.active").dataset.platform;
-    const selectedDifficulty = document.querySelector("#difficulty-filters .filter-label.active").dataset.difficulty;
-    const showLowValue = document.getElementById("show-low-value-toggle").checked;
-    
-    const filtered = allEvents.filter(e => {
-        // 1. Platform Filter
-        if (selectedPlatform !== "all" && e.platform !== selectedPlatform) return false;
-        
-        // 2. Status / Low Value Filter
-        if (e.status === "low_value" && !showLowValue) return false;
-        
-        // 3. Difficulty Filter
-        if (selectedDifficulty !== "all" && e.difficulty !== selectedDifficulty) return false;
-        
-        return true;
-    });
+    // No more frontend filtering — backend already filtered
+    const filtered = allEvents;
     
     if (filtered.length === 0) {
         grid.innerHTML = '<div style="color: var(--text-muted); grid-column: 1/-1; text-align: center; padding: 5rem 1rem; font-size: 1.1rem;">暂无匹配的数据。</div>';
@@ -224,6 +316,181 @@ async function startAnalysis(event, eventId, title, platform) {
         btn.classList.remove("loading");
     }
 }
+
+// ---------- 批量分析 ----------
+
+async function batchAnalyze() {
+    const btn = document.getElementById("batch-analyze-btn");
+    if (!selectedDate) {
+        alert("请先选择一个日期");
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "⚡ 启动中...";
+
+    try {
+        const res = await fetch("/api/batch-analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                date: selectedDate,
+                platform: selectedPlatform
+            })
+        });
+
+        if (res.status === 409) {
+            alert("已有批量分析任务正在运行，请等待完成。");
+            btn.disabled = false;
+            btn.textContent = "⚡ 批量分析";
+            return;
+        }
+
+        const data = await res.json();
+
+        if (data.status === "empty") {
+            alert("当前筛选条件下没有待分析的事件。");
+            btn.disabled = false;
+            btn.textContent = "⚡ 批量分析";
+            return;
+        }
+
+        // Show progress toast
+        showBatchProgress(data.total);
+        // Start polling
+        startBatchPolling();
+
+    } catch (e) {
+        alert("启动批量分析失败，请检查后端服务。");
+        btn.disabled = false;
+        btn.textContent = "⚡ 批量分析";
+    }
+}
+
+function showBatchProgress(total) {
+    const toast = document.getElementById("batch-progress");
+    toast.classList.remove("hide");
+    document.getElementById("batch-progress-count").textContent = `0 / ${total}`;
+    document.getElementById("batch-progress-fill").style.width = "0%";
+    document.getElementById("batch-progress-detail").textContent = "";
+}
+
+function startBatchPolling() {
+    if (batchPollTimer) clearInterval(batchPollTimer);
+
+    batchPollTimer = setInterval(async () => {
+        try {
+            const res = await fetch("/api/batch-analyze/status");
+            const data = await res.json();
+            updateBatchProgress(data);
+
+            if (!data.running) {
+                clearInterval(batchPollTimer);
+                batchPollTimer = null;
+                onBatchComplete(data);
+            }
+        } catch (e) {
+            console.error("Polling error:", e);
+        }
+    }, 2000);
+}
+
+function updateBatchProgress(data) {
+    const done = data.completed + data.failed;
+    const total = data.total;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+    document.getElementById("batch-progress-count").textContent = `${done} / ${total}`;
+    document.getElementById("batch-progress-fill").style.width = `${pct}%`;
+
+    let detail = "";
+    if (data.failed > 0) {
+        detail = `⚠️ ${data.failed} 条分析失败`;
+    }
+    document.getElementById("batch-progress-detail").textContent = detail;
+}
+
+function onBatchComplete(data) {
+    const btn = document.getElementById("batch-analyze-btn");
+    btn.disabled = false;
+    btn.textContent = "⚡ 批量分析";
+
+    let msg = `✅ 批量分析完成！成功 ${data.completed} 条`;
+    if (data.failed > 0) {
+        msg += `，失败 ${data.failed} 条`;
+        if (data.failed_titles.length > 0) {
+            msg += `\n失败项: ${data.failed_titles.join("、")}`;
+        }
+    }
+
+    // Hide progress after brief delay
+    setTimeout(() => {
+        document.getElementById("batch-progress").classList.add("hide");
+    }, 3000);
+
+    // Refresh events
+    loadEvents();
+}
+
+// ---------- 日报生成 ----------
+
+async function generateReport() {
+    if (!selectedDate) {
+        alert("请先选择一个日期");
+        return;
+    }
+
+    const btn = document.getElementById("generate-report-btn");
+    btn.disabled = true;
+    btn.textContent = "📄 生成中...";
+
+    try {
+        const res = await fetch(`/api/report/${selectedDate}`, {
+            method: "POST"
+        });
+
+        if (res.status === 404) {
+            const data = await res.json();
+            alert(data.detail || "没有符合条件的事件");
+            return;
+        }
+
+        const data = await res.json();
+
+        if (data.status === "success") {
+            reportMarkdownCache = data.markdown;
+            // Render HTML in modal
+            document.getElementById("report-html-content").innerHTML = data.html;
+            document.getElementById("report-modal").classList.remove("hide");
+        } else {
+            alert("日报生成失败");
+        }
+    } catch (e) {
+        alert("日报生成请求失败，请检查后端服务。");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "📄 生成日报";
+    }
+}
+
+function downloadReport() {
+    if (!reportMarkdownCache) return;
+    const blob = new Blob([reportMarkdownCache], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${selectedDate}-daily-report.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function closeReportModal() {
+    document.getElementById("report-modal").classList.add("hide");
+}
+
+// ---------- 详情 Modal ----------
 
 function showDetails(e) {
     document.getElementById("modal-title").textContent = e.title;

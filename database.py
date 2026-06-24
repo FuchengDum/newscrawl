@@ -62,20 +62,126 @@ def save_hot_event(title, url, platform, popularity):
     finally:
         conn.close()
 
-def get_pending_events():
+
+def get_events_filtered(date=None, platform=None, status=None, difficulty=None, show_low_value=True):
+    """
+    按日期、平台、状态、难度筛选事件。
+    - date: 'YYYY-MM-DD' 格式，匹配 datetime(created_at, '+8 hours') 的日期部分
+    - platform: 'weibo' / 'zhihu' / 'zhihu_pin'，None 为全部
+    - status: 'pending' / 'analyzed' / 'low_value' / 'failed'，None 为全部
+    - difficulty: 'easy' / 'medium' / 'hard'，None 为全部
+    - show_low_value: 当 status=None 时，是否包含 low_value 事件
+    返回: list[dict]
+    """
     conn = get_db_connection()
     try:
-        rows = conn.execute("""
-            SELECT h.id, h.title, h.url, h.platform, h.popularity, 
-                   n.status, n.value_score, n.target_audience, n.pain_point, 
+        query = """
+            SELECT h.id, h.title, h.url, h.platform, h.popularity,
+                   n.status, n.value_score, n.target_audience, n.pain_point,
                    n.product_concept, n.difficulty, n.analysis_summary, n.analyzed_at
             FROM hot_events h
             JOIN need_analysis n ON h.id = n.event_id
-            ORDER BY h.popularity DESC
-        """).fetchall()
+            WHERE 1=1
+        """
+        params = []
+
+        if date:
+            query += " AND date(datetime(h.created_at, '+8 hours')) = ?"
+            params.append(date)
+
+        if platform:
+            query += " AND h.platform = ?"
+            params.append(platform)
+
+        if status:
+            query += " AND n.status = ?"
+            params.append(status)
+        elif not show_low_value:
+            # 当 status=None 时，根据 show_low_value 决定是否排除 low_value
+            query += " AND n.status != 'low_value'"
+
+        if difficulty:
+            query += " AND n.difficulty = ?"
+            params.append(difficulty)
+
+        query += " ORDER BY h.popularity DESC"
+
+        rows = conn.execute(query, params).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+# 保留原函数名作为兼容别名
+def get_pending_events():
+    return get_events_filtered()
+
+
+def get_available_dates():
+    """
+    返回所有不重复日期列表（降序），使用 UTC+8 转换。
+    返回: ['2026-06-23', '2026-06-21']
+    """
+    conn = get_db_connection()
+    try:
+        rows = conn.execute("""
+            SELECT DISTINCT date(datetime(created_at, '+8 hours')) as local_date
+            FROM hot_events
+            ORDER BY local_date DESC
+        """).fetchall()
+        return [r["local_date"] for r in rows]
+    finally:
+        conn.close()
+
+
+def get_report_data(date):
+    """
+    查询指定日期（UTC+8）status='analyzed' 且 value_score >= 6 的事件。
+    按 value_score DESC 排序。返回完整字段用于日报生成。
+    """
+    conn = get_db_connection()
+    try:
+        rows = conn.execute("""
+            SELECT h.id, h.title, h.url, h.platform, h.popularity,
+                   n.status, n.value_score, n.target_audience, n.pain_point,
+                   n.product_concept, n.difficulty, n.analysis_summary, n.analyzed_at
+            FROM hot_events h
+            JOIN need_analysis n ON h.id = n.event_id
+            WHERE date(datetime(h.created_at, '+8 hours')) = ?
+              AND n.status = 'analyzed'
+              AND n.value_score >= 6
+            ORDER BY n.value_score DESC
+        """, (date,)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_batch_pending(date, platform=None):
+    """
+    查询指定日期（UTC+8）+ 平台下所有 status='pending' 的事件。
+    返回 [(id, title, platform), ...]
+    """
+    conn = get_db_connection()
+    try:
+        query = """
+            SELECT h.id, h.title, h.platform
+            FROM hot_events h
+            JOIN need_analysis n ON h.id = n.event_id
+            WHERE date(datetime(h.created_at, '+8 hours')) = ?
+              AND n.status = 'pending'
+        """
+        params = [date]
+
+        if platform:
+            query += " AND h.platform = ?"
+            params.append(platform)
+
+        rows = conn.execute(query, params).fetchall()
+        return [(r["id"], r["title"], r["platform"]) for r in rows]
+    finally:
+        conn.close()
+
 
 def event_exists(event_id: int) -> bool:
     conn = get_db_connection()
