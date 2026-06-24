@@ -20,6 +20,8 @@ class BatchAnalyzePayload(BaseModel):
     date: str
     platform: Optional[str] = None
 
+BATCH_SIZE_LIMIT = 20
+
 # 批量分析全局状态
 batch_state = {
     "running": False,
@@ -133,6 +135,12 @@ def batch_analyze(payload: BatchAnalyzePayload):
     if not pending:
         return {"status": "empty", "total": 0, "message": "没有待分析的事件"}
 
+    original_total = len(pending)
+    pending = pending[:BATCH_SIZE_LIMIT]
+
+    event_ids = [item[0] for item in pending]
+    database.reset_event_status_to_pending(event_ids)
+
     # 设置全局状态
     with batch_state["lock"]:
         batch_state["running"] = True
@@ -145,7 +153,12 @@ def batch_analyze(payload: BatchAnalyzePayload):
     t = threading.Thread(target=_run_batch_analysis, args=(pending,), daemon=True)
     t.start()
 
-    return {"status": "started", "total": len(pending)}
+    return {
+        "status": "started",
+        "total": len(pending),
+        "original_total": original_total,
+        "limit": BATCH_SIZE_LIMIT
+    }
 
 
 @app.get("/api/batch-analyze/status")

@@ -234,3 +234,30 @@ def test_static_files():
     finally:
         if os.path.exists(test_file_path):
             os.remove(test_file_path)
+
+def test_batch_analyze_with_limit():
+    with batch_state["lock"]:
+        batch_state["running"] = False
+    
+    pending = [(i, f"热点_{i}", "weibo") for i in range(1, 26)]
+    
+    with patch("database.get_batch_pending", return_value=pending), \
+         patch("database.reset_event_status_to_pending") as mock_reset, \
+         patch("threading.Thread") as mock_thread:
+        mock_thread.return_value.start = MagicMock()
+        
+        client = TestClient(app)
+        response = client.post("/api/batch-analyze", json={"date": "2026-06-23", "platform": "all"})
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "started"
+        assert data["total"] == 20
+        assert data["original_total"] == 25
+        assert data["limit"] == 20
+        
+        expected_ids = [i for i in range(1, 21)]
+        mock_reset.assert_called_once_with(expected_ids)
+        
+    with batch_state["lock"]:
+        batch_state["running"] = False
