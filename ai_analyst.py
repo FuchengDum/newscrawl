@@ -8,8 +8,44 @@ import database
 # 加载环境变量
 load_dotenv()
 
+def _call_openai_compatible_api(api_url, api_key, model_name, prompt, max_retries=3):
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "response_format": {"type": "json_object"}
+    }
+    
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()
+            res_data = response.json()
+            content = res_data["choices"][0]["message"]["content"]
+            analysis = json.loads(content.strip())
+            return True, analysis, None
+        except requests.exceptions.HTTPError as e:
+            last_error = e
+            status_code = e.response.status_code if e.response is not None else 0
+            if status_code >= 500 and attempt < max_retries - 1:
+                wait = 2 ** attempt
+                time.sleep(wait)
+                continue
+            break
+        except Exception as e:
+            last_error = e
+            break
+            
+    return False, None, last_error
+
 def analyze_hot_topic(title, platform):
-    # 每次调用时动态重载环境变量，确保能读取到最新配置
     load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -46,42 +82,24 @@ def analyze_hot_topic(title, platform):
     }}
     """
     
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}"
-    }
+    # 第一阶段：尝试主调用
+    success, analysis, last_error = _call_openai_compatible_api(api_url, api_key, model_name, prompt, max_retries=3)
+    
+    # 第二阶段：容灾回退
+    if not success and "elysiver.h-e.top" in api_url:
+        fb_url = os.getenv("FALLBACK_API_URL", "https://wzw.pp.ua/v1/chat/completions")
+        fb_key = os.getenv("FALLBACK_API_KEY", "9NJJqjmYYJSmiZYYsitQrk8AvjnF5g8rCsIeDoTWeJpS4wGu")
+        fb_models = ["deepseek-ai/deepseek-v4-flash", "deepseek-ai/deepseek-v4-pro"]
+        
+        for fb_model in fb_models:
+            success, analysis, fb_error = _call_openai_compatible_api(fb_url, fb_key, fb_model, prompt, max_retries=2)
+            if success:
+                break
+            else:
+                last_error = fb_error
 
-    payload = {
-        "model": model_name,
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
-        "response_format": {"type": "json_object"}
-    }
-
-    MAX_RETRIES = 3
-    last_error = None
-
-    for attempt in range(MAX_RETRIES):
-        try:
-            response = requests.post(api_url, headers=headers, json=payload, timeout=30)
-            response.raise_for_status()
-            res_data = response.json()
-            content = res_data["choices"][0]["message"]["content"]
-            analysis = json.loads(content.strip())
-            return analysis
-        except requests.exceptions.HTTPError as e:
-            last_error = e
-            status_code = e.response.status_code if e.response is not None else 0
-            # 5xx 服务器错误：等待后重试；4xx 客户端错误：立即放弃
-            if status_code >= 500 and attempt < MAX_RETRIES - 1:
-                wait = 2 ** attempt  # 1s, 2s
-                time.sleep(wait)
-                continue
-            break
-        except Exception as e:
-            last_error = e
-            break
+    if success:
+        return analysis
 
     return {
         "status": "failed",

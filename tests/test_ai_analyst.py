@@ -43,3 +43,48 @@ def test_ai_generation_output_live():
         assert "value_score" in res
         assert isinstance(res["value_score"], int)
         assert "target_audience" in res
+
+def test_ai_generation_failover_refactored():
+    from unittest.mock import patch, MagicMock
+    import requests
+    
+    def mock_post_side_effect(url, headers, json, timeout=30):
+        if "elysiver.h-e.top" in url:
+            response = MagicMock()
+            response.status_code = 500
+            response.raise_for_status.side_effect = requests.exceptions.HTTPError("500 Server Error", response=response)
+            return response
+        elif "wzw.pp.ua" in url:
+            response = MagicMock()
+            response.json.return_value = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"has_value": true, "value_score": 9, "target_audience": "开发者", "pain_point": "重复编写代码", "product_concept": "AI辅助工具", "difficulty": "easy", "analysis_summary": "DeepSeek极简辅助"}'
+                        }
+                    }
+                ]
+            }
+            return response
+        else:
+            raise ValueError(f"Unexpected request to {url}")
+
+    with patch("requests.post", side_effect=mock_post_side_effect) as mock_post:
+        os.environ["GEMINI_API_KEY"] = "mock_key"
+        old_url = os.environ.get("GEMINI_API_URL")
+        os.environ["GEMINI_API_URL"] = "https://elysiver.h-e.top/v1/chat/completions"
+        
+        try:
+            res = ai_analyst.analyze_hot_topic("程序员脱发问题", "zhihu")
+            assert res["has_value"] is True
+            assert res["value_score"] == 9
+            assert res["analysis_summary"] == "DeepSeek极简辅助"
+            
+            called_urls = [args[0] for args, kwargs in mock_post.call_args_list]
+            assert any("elysiver.h-e.top" in u for u in called_urls)
+            assert any("wzw.pp.ua" in u for u in called_urls)
+        finally:
+            if old_url is not None:
+                os.environ["GEMINI_API_URL"] = old_url
+            else:
+                os.environ.pop("GEMINI_API_URL", None)
