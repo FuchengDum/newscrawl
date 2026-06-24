@@ -112,7 +112,7 @@ def _run_batch_analysis(pending_items):
                 batch_state["failed_titles"].append(title)
 
     try:
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=2) as executor:
             executor.map(analyze_one, pending_items)
     finally:
         with batch_state["lock"]:

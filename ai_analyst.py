@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import requests
 from dotenv import load_dotenv
 import database
@@ -58,24 +59,40 @@ def analyze_hot_topic(title, platform):
         "response_format": {"type": "json_object"}
     }
 
-    try:
-        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
-        res_data = response.json()
-        content = res_data["choices"][0]["message"]["content"]
-        analysis = json.loads(content.strip())
-        return analysis
-    except Exception as e:
-        return {
-            "status": "failed",
-            "has_value": False,
-            "value_score": 1,
-            "target_audience": "错误",
-            "pain_point": f"API 报错: {str(e)}",
-            "product_concept": "分析失败",
-            "difficulty": "easy",
-            "analysis_summary": "API调用异常"
-        }
+    MAX_RETRIES = 3
+    last_error = None
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()
+            res_data = response.json()
+            content = res_data["choices"][0]["message"]["content"]
+            analysis = json.loads(content.strip())
+            return analysis
+        except requests.exceptions.HTTPError as e:
+            last_error = e
+            status_code = e.response.status_code if e.response is not None else 0
+            # 5xx 服务器错误：等待后重试；4xx 客户端错误：立即放弃
+            if status_code >= 500 and attempt < MAX_RETRIES - 1:
+                wait = 2 ** attempt  # 1s, 2s
+                time.sleep(wait)
+                continue
+            break
+        except Exception as e:
+            last_error = e
+            break
+
+    return {
+        "status": "failed",
+        "has_value": False,
+        "value_score": 1,
+        "target_audience": "错误",
+        "pain_point": f"API 报错: {str(last_error)}",
+        "product_concept": "分析失败",
+        "difficulty": "easy",
+        "analysis_summary": "API调用异常"
+    }
 
 def trigger_event_analysis(event_id, title, platform):
     # 抓取原始信息后调用 AI 并回填数据库
