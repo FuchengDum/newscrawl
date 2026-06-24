@@ -151,3 +151,39 @@ def test_update_analysis_status_override():
     with database.get_db_connection() as conn:
         row = conn.execute("SELECT * FROM need_analysis WHERE event_id = ?", (event_id,)).fetchone()
         assert row["status"] == "failed"
+
+def test_get_batch_pending_includes_failed():
+    # Setup test database events with pending and failed statuses
+    database.save_hot_event("Pending Event X", "http://x.com", "weibo", 100)
+    database.save_hot_event("Failed Event Y", "http://y.com", "weibo", 200)
+    database.save_hot_event("Analyzed Event Z", "http://z.com", "weibo", 300)
+    
+    with database.get_db_connection() as conn:
+        id_pending = conn.execute("SELECT id FROM hot_events WHERE title = 'Pending Event X'").fetchone()["id"]
+        id_failed = conn.execute("SELECT id FROM hot_events WHERE title = 'Failed Event Y'").fetchone()["id"]
+        id_analyzed = conn.execute("SELECT id FROM hot_events WHERE title = 'Analyzed Event Z'").fetchone()["id"]
+        conn.execute("UPDATE need_analysis SET status = 'failed' WHERE event_id = ?", (id_failed,))
+        conn.execute("UPDATE need_analysis SET status = 'analyzed' WHERE event_id = ?", (id_analyzed,))
+        conn.commit()
+
+    import datetime
+    today = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)).strftime("%Y-%m-%d")
+    pending_list = database.get_batch_pending(today, "weibo")
+    
+    ids = [item[0] for item in pending_list]
+    assert id_pending in ids
+    assert id_failed in ids
+    assert id_analyzed not in ids
+
+def test_reset_event_status_to_pending():
+    database.save_hot_event("Failed Event to Reset", "http://reset.com", "weibo", 150)
+    with database.get_db_connection() as conn:
+        event_id = conn.execute("SELECT id FROM hot_events WHERE title = 'Failed Event to Reset'").fetchone()["id"]
+        conn.execute("UPDATE need_analysis SET status = 'failed' WHERE event_id = ?", (event_id,))
+        conn.commit()
+        
+    database.reset_event_status_to_pending([event_id])
+    
+    with database.get_db_connection() as conn:
+        row = conn.execute("SELECT status FROM need_analysis WHERE event_id = ?", (event_id,)).fetchone()
+        assert row["status"] == "pending"

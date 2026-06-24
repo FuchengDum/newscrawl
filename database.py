@@ -159,7 +159,7 @@ def get_report_data(date):
 
 def get_batch_pending(date, platform=None):
     """
-    查询指定日期（UTC+8）+ 平台下所有 status='pending' 的事件。
+    查询指定日期（UTC+8）+ 平台下所有 status='pending' 或 'failed' 的事件。
     返回 [(id, title, platform), ...]
     """
     conn = get_db_connection()
@@ -169,7 +169,7 @@ def get_batch_pending(date, platform=None):
             FROM hot_events h
             JOIN need_analysis n ON h.id = n.event_id
             WHERE date(datetime(h.created_at, '+8 hours')) = ?
-              AND n.status = 'pending'
+              AND n.status IN ('pending', 'failed')
         """
         params = [date]
 
@@ -179,6 +179,22 @@ def get_batch_pending(date, platform=None):
 
         rows = conn.execute(query, params).fetchall()
         return [(r["id"], r["title"], r["platform"]) for r in rows]
+    finally:
+        conn.close()
+
+def reset_event_status_to_pending(event_ids: list[int]):
+    """将指定事件的分析状态重置为 pending"""
+    if not event_ids:
+        return
+    conn = get_db_connection()
+    try:
+        with conn:
+            placeholder = ",".join("?" for _ in event_ids)
+            conn.execute(
+                f"UPDATE need_analysis SET status = 'pending' WHERE event_id IN ({placeholder})",
+                event_ids
+            )
+            conn.commit()
     finally:
         conn.close()
 
