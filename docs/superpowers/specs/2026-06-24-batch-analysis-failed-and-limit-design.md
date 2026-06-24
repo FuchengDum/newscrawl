@@ -36,6 +36,17 @@
 - 在 `batchAnalyze` 启动成功后，判断 `data.original_total > data.limit`。
 - 若超出限制，弹窗提示用户：“提示：当前共有 ${data.original_total} 条待分析/失败的事件。由于并发限制，本次批量分析仅处理前 ${data.limit} 条，其余事件可在完成后再次发起分析。”
 
+### 4. AI 模型调用容灾（Failover）
+
+在 [ai_analyst.py](file:///Users/dum/google/proj/ainews/ai_analyst.py) 中：
+- 修改 `analyze_hot_topic(title, platform)` 函数。
+- 默认尝试主调用（`https://elysiver.h-e.top`，重试最多 3 次）。
+- 如果主调用失败（异常或非 2xx 响应），判断当前的 `api_url` 是否为 `https://elysiver.h-e.top` 相关的域名。如果是，则切换到备用 DeepSeek 调用：
+  - **备用 API 地址**：`https://wzw.pp.ua/v1/chat/completions`
+  - **备用 API 密钥**：`9NJJqjmYYJSmiZYYsitQrk8AvjnF5g8rCsIeDoTWeJpS4wGu`
+  - **备用模型列表**（按顺序尝试）：`deepseek-ai/deepseek-v4-flash`、`deepseek-ai/deepseek-v4-pro`
+  - 每个备用模型调用均会设置最大重试 3 次及超时。只要其中一个模型调用成功，即解析返回。
+
 ---
 
 ## 验证方案
@@ -43,3 +54,5 @@
 ### 自动化测试
 1. 修改 `tests/test_database.py`，测试 `get_batch_pending` 能同时查出 `pending` 和 `failed` 的事件。
 2. 增加/修改 `tests/test_main.py`，测试当待分析数量超过 `BATCH_SIZE_LIMIT` 时，只取出前 20 条进行分析，且返回正确的 `original_total` 和 `limit`。
+3. 增加 `tests/test_ai_analyst.py` 测试，模拟主调用 `https://elysiver.h-e.top` 失败的情况，并验证调用是否成功 failover 到 `https://wzw.pp.ua` 并尝试备用 DeepSeek 模型。
+
