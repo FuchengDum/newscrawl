@@ -15,7 +15,7 @@
 ### 2. 后端接口层增加数量限制
 
 在 [main.py](file:///Users/dum/google/proj/ainews/main.py) 中：
-- 定义常量 `BATCH_SIZE_LIMIT = 10`。
+- 定义常量 `BATCH_SIZE_LIMIT = 20`。
 - 在 `/api/batch-analyze` 接口中：
   - 获取待分析列表后，记录原始待分析总数 `original_total`。
   - 使用切片限制本次处理数量：`pending = pending[:BATCH_SIZE_LIMIT]`。
@@ -24,9 +24,9 @@
     ```json
     {
       "status": "started",
-      "total": 10,
+      "total": 20,
       "original_total": 25,
-      "limit": 10
+      "limit": 20
     }
     ```
 
@@ -42,4 +42,4 @@
 
 ### 自动化测试
 1. 修改 `tests/test_database.py`，测试 `get_batch_pending` 能同时查出 `pending` 和 `failed` 的事件。
-2. 增加/修改 `tests/test_main.py`，测试当待分析数量超过 `BATCH_SIZE_LIMIT` 时，只取出前 10 条进行分析，且返回正确的 `original_total` 和 `limit`。
+2. 增加/修改 `tests/test_main.py`，测试当待分析数量超过 `BATCH_SIZE_LIMIT` 时，只取出前 20 条进行分析，且返回正确的 `original_total` 和 `limit`。
