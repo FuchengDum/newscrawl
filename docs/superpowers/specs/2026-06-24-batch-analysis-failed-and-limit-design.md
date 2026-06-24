@@ -39,13 +39,14 @@
 ### 4. AI 模型调用容灾（Failover）
 
 在 [ai_analyst.py](file:///Users/dum/google/proj/ainews/ai_analyst.py) 中：
-- 修改 `analyze_hot_topic(title, platform)` 函数。
-- 默认尝试主调用（`https://elysiver.h-e.top`，重试最多 3 次）。
-- 如果主调用失败（异常或非 2xx 响应），判断当前的 `api_url` 是否为 `https://elysiver.h-e.top` 相关的域名。如果是，则切换到备用 DeepSeek 调用：
-  - **备用 API 地址**：`https://wzw.pp.ua/v1/chat/completions`
-  - **备用 API 密钥**：`9NJJqjmYYJSmiZYYsitQrk8AvjnF5g8rCsIeDoTWeJpS4wGu`
-  - **备用模型列表**（按顺序尝试）：`deepseek-ai/deepseek-v4-flash`、`deepseek-ai/deepseek-v4-pro`
-  - 每个备用模型调用均会设置最大重试 3 次及超时。只要其中一个模型调用成功，即解析返回。
+- 抽取通用的 API 请求函数 `_call_openai_compatible_api(url, key, model, prompt, max_retries)` 以消除代码冗余。
+- 修改 `analyze_hot_topic(title, platform)` 函数：
+  1. 首先尝试主调用（`https://elysiver.h-e.top`，重试最多 3 次）。
+  2. 如果主调用失败（异常或非 2xx 响应），且主 URL 包含 `elysiver.h-e.top`，则进行容灾切换：
+     - **备用配置优先读取环境变量**（`FALLBACK_API_URL`, `FALLBACK_API_KEY`），若不存在则使用指定的硬编码默认值（`https://wzw.pp.ua/v1/chat/completions` 和对应的 Key）。
+     - 尝试使用第一个备用模型 `deepseek-ai/deepseek-v4-flash`（最大重试 1 次）。
+     - 如果第一备用模型失败，则尝试第二个备用模型 `deepseek-ai/deepseek-v4-pro`（最大重试 1 次）。
+  3. 任一阶段成功即返回结果，彻底失败则返回带有错误详情的统一格式字典。
 
 ---
 
