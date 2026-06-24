@@ -349,7 +349,7 @@ async function batchAnalyze() {
         const data = await res.json();
 
         if (data.status === "empty") {
-            alert("当前筛选条件下没有待分析的事件。");
+            alert("当前筛选条件下没有待分析或失败的事件。");
             btn.disabled = false;
             btn.textContent = "⚡ 批量分析";
             return;
@@ -359,6 +359,10 @@ async function batchAnalyze() {
         showBatchProgress(data.total);
         // Start polling
         startBatchPolling();
+
+        if (data.original_total > data.limit) {
+            alert(`提示：当前共有 ${data.original_total} 条待分析/失败的事件。\n由于并发和系统负载限制，本次批量分析仅处理前 ${data.limit} 条，剩余事件可在本次完成后再次发起。`);
+        }
 
     } catch (e) {
         alert("启动批量分析失败，请检查后端服务。");
