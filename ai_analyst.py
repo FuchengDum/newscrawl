@@ -3,12 +3,42 @@ import json
 import time
 import requests
 from dotenv import load_dotenv
+from typing import Tuple, Dict, Any, Optional, Set, List
 import database
 
 # 加载环境变量
 load_dotenv()
 
-def _call_openai_compatible_api(api_url, api_key, model_name, prompt, max_retries=3):
+# Track attempted models and successful models under specific URLs to skip failed ones
+_attempted_models: Set[Tuple[str, str]] = set()
+_successful_models: Set[Tuple[str, str]] = set()
+
+def _call_openai_compatible_api(
+    api_url: str,
+    api_key: str,
+    model_name: str,
+    prompt: str,
+    max_retries: int = 3
+) -> Tuple[bool, Optional[Dict[str, Any]], Optional[Exception]]:
+    """Calls an OpenAI compatible API with retry and logs results.
+
+    If a model at a specific api_url was attempted but never succeeded, it is skipped.
+
+    Args:
+        api_url: The endpoint URL.
+        api_key: The authorization bearer token.
+        model_name: Name of the model to call.
+        prompt: User prompt content.
+        max_retries: Maximum attempts to retry on 5xx status codes.
+
+    Returns:
+        A tuple of (success, analysis_data, error_object).
+    """
+    if (api_url, model_name) in _attempted_models and (api_url, model_name) not in _successful_models:
+        return False, None, Exception(f"Model {model_name} at {api_url} was skipped because it has never succeeded.")
+
+    _attempted_models.add((api_url, model_name))
+
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}"
@@ -30,6 +60,7 @@ def _call_openai_compatible_api(api_url, api_key, model_name, prompt, max_retrie
             res_data = response.json()
             content = res_data["choices"][0]["message"]["content"]
             analysis = json.loads(content.strip())
+            _successful_models.add((api_url, model_name))
             return True, analysis, None
         except requests.exceptions.HTTPError as e:
             last_error = e
@@ -45,7 +76,16 @@ def _call_openai_compatible_api(api_url, api_key, model_name, prompt, max_retrie
             
     return False, None, last_error
 
-def analyze_hot_topic(title, platform):
+def analyze_hot_topic(title: str, platform: str) -> Dict[str, Any]:
+    """Analyzes a hot topic to see if there is potential for a software product/SaaS.
+
+    Args:
+        title: Title of the hot topic.
+        platform: Platform source of the hot topic.
+
+    Returns:
+        A dictionary containing the analysis results.
+    """
     load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -112,17 +152,34 @@ def analyze_hot_topic(title, platform):
         "analysis_summary": "API调用异常"
     }
 
-def trigger_event_analysis(event_id, title, platform):
+def trigger_event_analysis(event_id: int, title: str, platform: str) -> Dict[str, Any]:
+    """Triggers analysis for a specific hot event and updates the database.
+
+    Args:
+        event_id: The database ID of the hot event.
+        title: Title of the hot event.
+        platform: Source platform.
+
+    Returns:
+        The analysis results.
+    """
     # 抓取原始信息后调用 AI 并回填数据库
     analysis = analyze_hot_topic(title, platform)
     database.update_analysis(event_id, analysis)
     return analysis
 
 
-def generate_daily_report_markdown(date, events):
-    """
-    纯本地字符串格式化，不调用 AI API。
+def generate_daily_report_markdown(date: str, events: List[Dict[str, Any]]) -> str:
+    """纯本地字符串格式化，不调用 AI API。
+
     生成指定日期的热点需求日报 Markdown。
+
+    Args:
+        date: Target date string for the report.
+        events: List of events data.
+
+    Returns:
+        Generated report markdown.
     """
     from datetime import datetime as dt
 

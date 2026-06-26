@@ -76,6 +76,7 @@ def test_batch_analyze_starts():
         batch_state["running"] = False
     pending = [(1, "热点A", "weibo"), (2, "热点B", "zhihu")]
     with patch("database.get_batch_pending", return_value=pending), \
+         patch("database.reset_event_status_to_pending"), \
          patch("threading.Thread") as mock_thread:
         mock_thread.return_value.start = MagicMock()
         client = TestClient(app)

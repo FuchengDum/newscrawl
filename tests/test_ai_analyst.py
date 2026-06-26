@@ -88,3 +88,36 @@ def test_ai_generation_failover_refactored():
                 os.environ["GEMINI_API_URL"] = old_url
             else:
                 os.environ.pop("GEMINI_API_URL", None)
+
+def test_model_skip_on_repeated_failure():
+    # Reset tracking sets for the test
+    ai_analyst._attempted_models.clear()
+    ai_analyst._successful_models.clear()
+
+    # Mock post to fail
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+    mock_response.raise_for_status.side_effect = Exception("HTTP 500 Error")
+
+    with patch("requests.post", return_value=mock_response) as mock_post:
+        # First attempt should fail and call post
+        success, analysis, error = ai_analyst._call_openai_compatible_api(
+            "https://test-url.com/v1", "key", "test-model", "hello", max_retries=1
+        )
+        assert success is False
+        assert mock_post.call_count == 1
+
+        # Second attempt should skip and NOT call post
+        success, analysis, error = ai_analyst._call_openai_compatible_api(
+            "https://test-url.com/v1", "key", "test-model", "hello", max_retries=1
+        )
+        assert success is False
+        assert "skipped" in str(error)
+        assert mock_post.call_count == 1  # Should still be 1!
+
+        # Now, if we try another model, it should NOT skip it
+        success, analysis, error = ai_analyst._call_openai_compatible_api(
+            "https://test-url.com/v1", "key", "another-model", "hello", max_retries=1
+        )
+        assert success is False
+        assert mock_post.call_count == 2
