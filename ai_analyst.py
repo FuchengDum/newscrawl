@@ -9,9 +9,9 @@ import database
 # 加载环境变量
 load_dotenv()
 
-# Track attempted models and successful models under specific URLs to skip failed ones
-_attempted_models: Set[Tuple[str, str]] = set()
+# Track successful models and consecutive failures to implement circuit-breaker skipping
 _successful_models: Set[Tuple[str, str]] = set()
+_consecutive_failures: Dict[Tuple[str, str], int] = {}
 
 def _call_openai_compatible_api(
     api_url: str,
@@ -34,10 +34,13 @@ def _call_openai_compatible_api(
     Returns:
         A tuple of (success, analysis_data, error_object).
     """
-    if (api_url, model_name) in _attempted_models and (api_url, model_name) not in _successful_models:
-        return False, None, Exception(f"Model {model_name} at {api_url} was skipped because it has never succeeded.")
+    failures = _consecutive_failures.get((api_url, model_name), 0)
+    has_succeeded = (api_url, model_name) in _successful_models
 
-    _attempted_models.add((api_url, model_name))
+    if (not has_succeeded and failures > 0) or (has_succeeded and failures >= 3):
+        return False, None, Exception(
+            f"Model {model_name} at {api_url} was skipped due to consecutive failures ({failures} failures)."
+        )
 
     headers = {
         "Content-Type": "application/json",
@@ -61,6 +64,7 @@ def _call_openai_compatible_api(
             content = res_data["choices"][0]["message"]["content"]
             analysis = json.loads(content.strip())
             _successful_models.add((api_url, model_name))
+            _consecutive_failures[(api_url, model_name)] = 0
             return True, analysis, None
         except requests.exceptions.HTTPError as e:
             last_error = e
@@ -74,6 +78,7 @@ def _call_openai_compatible_api(
             last_error = e
             break
             
+    _consecutive_failures[(api_url, model_name)] = _consecutive_failures.get((api_url, model_name), 0) + 1
     return False, None, last_error
 
 def analyze_hot_topic(title: str, platform: str) -> Dict[str, Any]:

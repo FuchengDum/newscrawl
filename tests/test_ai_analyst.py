@@ -6,8 +6,8 @@ from unittest.mock import patch, MagicMock
 
 @pytest.fixture(autouse=True)
 def clean_model_cache():
-    # Clear attempted and successful models sets before each test to prevent test pollution
-    ai_analyst._attempted_models.clear()
+    # Clear attempted, successful, and consecutive failures tracking before each test to prevent test pollution
+    ai_analyst._consecutive_failures.clear()
     ai_analyst._successful_models.clear()
 
 
@@ -119,7 +119,7 @@ def test_ai_generation_failover_refactored():
 
 def test_model_skip_on_repeated_failure():
     # Reset tracking sets for the test
-    ai_analyst._attempted_models.clear()
+    ai_analyst._consecutive_failures.clear()
     ai_analyst._successful_models.clear()
 
     # Mock post to fail
@@ -182,7 +182,7 @@ def test_ai_primary_model_switching():
 
     with patch("requests.post", side_effect=mock_post_side_effect) as mock_post:
         # Reset tracking sets
-        ai_analyst._attempted_models.clear()
+        ai_analyst._consecutive_failures.clear()
         ai_analyst._successful_models.clear()
         
         old_key = os.environ.get("GEMINI_API_KEY")
@@ -215,4 +215,44 @@ def test_ai_primary_model_switching():
                 os.environ["GEMINI_MODEL"] = old_models
             else:
                 os.environ.pop("GEMINI_MODEL", None)
+
+
+def test_model_skip_on_consecutive_failures():
+    # Test that a model which succeeded in the past is skipped after 3 consecutive failures
+    import requests
+    
+    # 1. First attempt: succeed
+    mock_response_success = MagicMock()
+    mock_response_success.json.return_value = {
+        "choices": [{"message": {"content": '{"has_value": true, "value_score": 7}'}}]
+    }
+    
+    with patch("requests.post", return_value=mock_response_success) as mock_post:
+        success, analysis, error = ai_analyst._call_openai_compatible_api(
+            "https://test-url.com/v1", "key", "test-model", "hello", max_retries=1
+        )
+        assert success is True
+        assert mock_post.call_count == 1
+
+    # 2. Next 3 attempts: fail
+    mock_response_fail = MagicMock()
+    mock_response_fail.status_code = 500
+    mock_response_fail.raise_for_status.side_effect = Exception("HTTP 500 Error")
+    
+    with patch("requests.post", return_value=mock_response_fail) as mock_post:
+        for i in range(3):
+            success, analysis, error = ai_analyst._call_openai_compatible_api(
+                "https://test-url.com/v1", "key", "test-model", "hello", max_retries=1
+            )
+            assert success is False
+            assert mock_post.call_count == i + 1
+
+    # 3. 5th attempt: should skip and NOT call post
+    with patch("requests.post", return_value=mock_response_fail) as mock_post:
+        success, analysis, error = ai_analyst._call_openai_compatible_api(
+            "https://test-url.com/v1", "key", "test-model", "hello", max_retries=1
+        )
+        assert success is False
+        assert "skipped" in str(error)
+        assert mock_post.call_count == 0  # Should be skipped!
 
