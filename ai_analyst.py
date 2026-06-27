@@ -100,8 +100,9 @@ def analyze_hot_topic(title: str, platform: str) -> Dict[str, Any]:
             "analysis_summary": "请先配置密钥"
         }
         
-    api_url = os.getenv("GEMINI_API_URL", "https://elysiver.h-e.top/v1/chat/completions")
-    model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    api_url = os.getenv("GEMINI_API_URL")
+    model_raw = os.getenv("GEMINI_MODEL", "")
+    primary_models = [m.strip() for m in model_raw.split(",") if m.strip()]
 
     prompt = f"""
     你是一名经验丰富的产品经理与天使投资分析师。
@@ -122,17 +123,29 @@ def analyze_hot_topic(title: str, platform: str) -> Dict[str, Any]:
     }}
     """
     
-    # 第一阶段：尝试主调用
-    success, analysis, last_error = _call_openai_compatible_api(api_url, api_key, model_name, prompt, max_retries=3)
+    # 第一阶段：尝试主调用（支持多个模型依次重试）
+    success = False
+    analysis = None
+    last_error = None
+    if api_url and primary_models:
+        for model_name in primary_models:
+            success, analysis, last_error = _call_openai_compatible_api(
+                api_url, api_key, model_name, prompt, max_retries=3
+            )
+            if success:
+                break
     
     # 第二阶段：容灾回退
-    if not success and "elysiver.h-e.top" in api_url:
-        fb_url = os.getenv("FALLBACK_API_URL", "https://wzw.pp.ua/v1/chat/completions")
-        fb_key = os.getenv("FALLBACK_API_KEY", "9NJJqjmYYJSmiZYYsitQrk8AvjnF5g8rCsIeDoTWeJpS4wGu")
-        fb_models = ["deepseek-ai/deepseek-v4-flash", "deepseek-ai/deepseek-v4-pro"]
-        
+    fb_url = os.getenv("FALLBACK_API_URL")
+    fb_key = os.getenv("FALLBACK_API_KEY")
+    fb_models_raw = os.getenv("FALLBACK_MODELS", "")
+    fb_models = [m.strip() for m in fb_models_raw.split(",") if m.strip()]
+    
+    if not success and fb_url and fb_key and fb_models:
         for fb_model in fb_models:
-            success, analysis, fb_error = _call_openai_compatible_api(fb_url, fb_key, fb_model, prompt, max_retries=2)
+            success, analysis, fb_error = _call_openai_compatible_api(
+                fb_url, fb_key, fb_model, prompt, max_retries=2
+            )
             if success:
                 break
             else:
