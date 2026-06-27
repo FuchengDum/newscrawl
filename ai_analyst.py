@@ -160,8 +160,6 @@ def analyze_hot_topic(title: str, platform: str) -> Dict[str, Any]:
             )
             if success:
                 break
-            if _is_server_or_network_error(last_error):
-                break
         
         # If the entire primary provider stage failed, increment its failures
         if not success:
@@ -182,8 +180,6 @@ def analyze_hot_topic(title: str, platform: str) -> Dict[str, Any]:
                 break
             else:
                 last_error = fb_error
-            if _is_server_or_network_error(fb_error):
-                break
                 
         # If the entire fallback provider stage failed, increment its failures
         if not success:

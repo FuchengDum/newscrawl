@@ -162,10 +162,10 @@ def test_ai_primary_model_switching():
     def mock_post_side_effect(url, headers, json, timeout=30):
         model = json.get("model")
         if model == "gemini-2.5-flash":
-            # Fail the first model with a non-server 404 error (so loop doesn't break)
+            # Fail the first model with a 500 error (verify switching continues on server error)
             response = MagicMock()
-            response.status_code = 404
-            response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found", response=response)
+            response.status_code = 500
+            response.raise_for_status.side_effect = requests.exceptions.HTTPError("500 Server Error", response=response)
             return response
         elif model == "gemini-1.5-flash":
             # Succeed on the second model
@@ -263,16 +263,32 @@ def test_model_skip_on_consecutive_failures():
         assert mock_post.call_count == 0  # Should be skipped!
 
 
-def test_primary_model_switch_break_on_server_error():
-    # Verify that a 500 error on the first model immediately stops trying other models on that provider
+def test_primary_model_switch_continues_on_server_error():
+    # Verify that a 500 error on the first model does NOT stop trying other models on that provider
     from unittest.mock import patch, MagicMock
     import requests
 
     def mock_post_side_effect(url, headers, json, timeout=30):
-        response = MagicMock()
-        response.status_code = 500
-        response.raise_for_status.side_effect = requests.exceptions.HTTPError("500 Server Error", response=response)
-        return response
+        model = json.get("model")
+        if model == "gemini-2.5-flash":
+            response = MagicMock()
+            response.status_code = 500
+            response.raise_for_status.side_effect = requests.exceptions.HTTPError("500 Server Error", response=response)
+            return response
+        elif model == "gemini-1.5-flash":
+            response = MagicMock()
+            response.json.return_value = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"has_value": true, "value_score": 7, "target_audience": "开发者", "pain_point": "重复", "product_concept": "AI", "difficulty": "easy", "analysis_summary": "成功"}'
+                        }
+                    }
+                ]
+            }
+            return response
+        else:
+            raise ValueError(f"Unexpected model {model}")
 
     with patch("requests.post", side_effect=mock_post_side_effect) as mock_post:
         ai_analyst._consecutive_provider_failures.clear()
@@ -287,13 +303,13 @@ def test_primary_model_switch_break_on_server_error():
 
         try:
             res = ai_analyst.analyze_hot_topic("程序员脱发问题", "zhihu")
-            assert res["status"] == "failed"
-            # It should only have called the first model (gemini-2.5-flash) and NOT the second model
-            # Call count should be exactly equal to max_retries (3) for the first model
-            assert mock_post.call_count == 3
+            assert res["has_value"] is True
+            assert res["value_score"] == 7
+            # Call count should be max_retries for model 1 (3) + 1 for model 2 (1) = 4
+            assert mock_post.call_count == 4
             called_models = [kwargs["json"]["model"] for args, kwargs in mock_post.call_args_list]
-            assert all(m == "gemini-2.5-flash" for m in called_models)
-            assert "gemini-1.5-flash" not in called_models
+            assert "gemini-2.5-flash" in called_models
+            assert "gemini-1.5-flash" in called_models
         finally:
             if old_fb_url is not None:
                 os.environ["FALLBACK_API_URL"] = old_fb_url
