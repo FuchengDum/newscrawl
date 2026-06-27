@@ -7,8 +7,8 @@ from unittest.mock import patch, MagicMock
 @pytest.fixture(autouse=True)
 def clean_model_cache():
     # Clear attempted, successful, and consecutive failures tracking before each test to prevent test pollution
-    ai_analyst._consecutive_failures.clear()
-    ai_analyst._successful_models.clear()
+    ai_analyst._consecutive_provider_failures.clear()
+    ai_analyst._successful_providers.clear()
 
 
 def test_mock_analysis_without_key():
@@ -119,8 +119,8 @@ def test_ai_generation_failover_refactored():
 
 def test_model_skip_on_repeated_failure():
     # Reset tracking sets for the test
-    ai_analyst._consecutive_failures.clear()
-    ai_analyst._successful_models.clear()
+    ai_analyst._consecutive_provider_failures.clear()
+    ai_analyst._successful_providers.clear()
 
     # Mock post to fail
     mock_response = MagicMock()
@@ -134,6 +134,8 @@ def test_model_skip_on_repeated_failure():
         )
         assert success is False
         assert mock_post.call_count == 1
+        # Manually increment since we called _call_openai_compatible_api directly
+        ai_analyst._consecutive_provider_failures["https://test-url.com/v1"] = 1
 
         # Second attempt should skip and NOT call post
         success, analysis, error = ai_analyst._call_openai_compatible_api(
@@ -143,12 +145,13 @@ def test_model_skip_on_repeated_failure():
         assert "skipped" in str(error)
         assert mock_post.call_count == 1  # Should still be 1!
 
-        # Now, if we try another model, it should NOT skip it
+        # Now, if we try another model on the same provider, it should also skip it (provider-level skip)
         success, analysis, error = ai_analyst._call_openai_compatible_api(
             "https://test-url.com/v1", "key", "another-model", "hello", max_retries=1
         )
         assert success is False
-        assert mock_post.call_count == 2
+        assert "skipped" in str(error)
+        assert mock_post.call_count == 1  # Should still be 1!
 
 
 def test_ai_primary_model_switching():
@@ -159,10 +162,10 @@ def test_ai_primary_model_switching():
     def mock_post_side_effect(url, headers, json, timeout=30):
         model = json.get("model")
         if model == "gemini-2.5-flash":
-            # Fail the first model
+            # Fail the first model with a non-server 404 error (so loop doesn't break)
             response = MagicMock()
-            response.status_code = 500
-            response.raise_for_status.side_effect = requests.exceptions.HTTPError("500 Server Error", response=response)
+            response.status_code = 404
+            response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found", response=response)
             return response
         elif model == "gemini-1.5-flash":
             # Succeed on the second model
@@ -182,8 +185,8 @@ def test_ai_primary_model_switching():
 
     with patch("requests.post", side_effect=mock_post_side_effect) as mock_post:
         # Reset tracking sets
-        ai_analyst._consecutive_failures.clear()
-        ai_analyst._successful_models.clear()
+        ai_analyst._consecutive_provider_failures.clear()
+        ai_analyst._successful_providers.clear()
         
         old_key = os.environ.get("GEMINI_API_KEY")
         old_url = os.environ.get("GEMINI_API_URL")
@@ -246,6 +249,9 @@ def test_model_skip_on_consecutive_failures():
             )
             assert success is False
             assert mock_post.call_count == i + 1
+            # Manually increment failure count since we call the lower-level API function directly
+            ai_analyst._consecutive_provider_failures["https://test-url.com/v1"] = \
+                ai_analyst._consecutive_provider_failures.get("https://test-url.com/v1", 0) + 1
 
     # 3. 5th attempt: should skip and NOT call post
     with patch("requests.post", return_value=mock_response_fail) as mock_post:
@@ -255,4 +261,42 @@ def test_model_skip_on_consecutive_failures():
         assert success is False
         assert "skipped" in str(error)
         assert mock_post.call_count == 0  # Should be skipped!
+
+
+def test_primary_model_switch_break_on_server_error():
+    # Verify that a 500 error on the first model immediately stops trying other models on that provider
+    from unittest.mock import patch, MagicMock
+    import requests
+
+    def mock_post_side_effect(url, headers, json, timeout=30):
+        response = MagicMock()
+        response.status_code = 500
+        response.raise_for_status.side_effect = requests.exceptions.HTTPError("500 Server Error", response=response)
+        return response
+
+    with patch("requests.post", side_effect=mock_post_side_effect) as mock_post:
+        ai_analyst._consecutive_provider_failures.clear()
+        ai_analyst._successful_providers.clear()
+
+        os.environ["GEMINI_API_KEY"] = "mock_key"
+        os.environ["GEMINI_API_URL"] = "https://elysiver.h-e.top/v1/chat/completions"
+        os.environ["GEMINI_MODEL"] = "gemini-2.5-flash,gemini-1.5-flash"
+
+        old_fb_url = os.environ.get("FALLBACK_API_URL")
+        os.environ["FALLBACK_API_URL"] = ""
+
+        try:
+            res = ai_analyst.analyze_hot_topic("程序员脱发问题", "zhihu")
+            assert res["status"] == "failed"
+            # It should only have called the first model (gemini-2.5-flash) and NOT the second model
+            # Call count should be exactly equal to max_retries (3) for the first model
+            assert mock_post.call_count == 3
+            called_models = [kwargs["json"]["model"] for args, kwargs in mock_post.call_args_list]
+            assert all(m == "gemini-2.5-flash" for m in called_models)
+            assert "gemini-1.5-flash" not in called_models
+        finally:
+            if old_fb_url is not None:
+                os.environ["FALLBACK_API_URL"] = old_fb_url
+            else:
+                os.environ.pop("FALLBACK_API_URL", None)
 

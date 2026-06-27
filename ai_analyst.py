@@ -9,9 +9,31 @@ import database
 # 加载环境变量
 load_dotenv()
 
-# Track successful models and consecutive failures to implement circuit-breaker skipping
-_successful_models: Set[Tuple[str, str]] = set()
-_consecutive_failures: Dict[Tuple[str, str], int] = {}
+# Track successful providers and consecutive failures to implement circuit-breaker skipping
+_successful_providers: Set[str] = set()
+_consecutive_provider_failures: Dict[str, int] = {}
+
+def _is_server_or_network_error(error: Optional[Exception]) -> bool:
+    """Helper to identify if an error is a server or network-level failure.
+
+    Args:
+        error: The Exception object to check.
+
+    Returns:
+        True if it's a server or network failure, False otherwise.
+    """
+    if not error:
+        return False
+    if isinstance(error, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+        return True
+    if isinstance(error, requests.exceptions.HTTPError):
+        status_code = error.response.status_code if error.response is not None else 0
+        if status_code >= 500:
+            return True
+    err_str = str(error).lower()
+    if "connection" in err_str or "timeout" in err_str or "dns" in err_str or "ssl" in err_str:
+        return True
+    return False
 
 def _call_openai_compatible_api(
     api_url: str,
@@ -22,7 +44,7 @@ def _call_openai_compatible_api(
 ) -> Tuple[bool, Optional[Dict[str, Any]], Optional[Exception]]:
     """Calls an OpenAI compatible API with retry and logs results.
 
-    If a model at a specific api_url was attempted but never succeeded, it is skipped.
+    If a provider at a specific api_url was attempted but never succeeded, it is skipped.
 
     Args:
         api_url: The endpoint URL.
@@ -34,12 +56,12 @@ def _call_openai_compatible_api(
     Returns:
         A tuple of (success, analysis_data, error_object).
     """
-    failures = _consecutive_failures.get((api_url, model_name), 0)
-    has_succeeded = (api_url, model_name) in _successful_models
+    failures = _consecutive_provider_failures.get(api_url, 0)
+    has_succeeded = api_url in _successful_providers
 
     if (not has_succeeded and failures > 0) or (has_succeeded and failures >= 3):
         return False, None, Exception(
-            f"Model {model_name} at {api_url} was skipped due to consecutive failures ({failures} failures)."
+            f"Provider at {api_url} was skipped due to consecutive failures ({failures} failures)."
         )
 
     headers = {
@@ -63,8 +85,8 @@ def _call_openai_compatible_api(
             res_data = response.json()
             content = res_data["choices"][0]["message"]["content"]
             analysis = json.loads(content.strip())
-            _successful_models.add((api_url, model_name))
-            _consecutive_failures[(api_url, model_name)] = 0
+            _successful_providers.add(api_url)
+            _consecutive_provider_failures[api_url] = 0
             return True, analysis, None
         except requests.exceptions.HTTPError as e:
             last_error = e
@@ -78,7 +100,6 @@ def _call_openai_compatible_api(
             last_error = e
             break
             
-    _consecutive_failures[(api_url, model_name)] = _consecutive_failures.get((api_url, model_name), 0) + 1
     return False, None, last_error
 
 def analyze_hot_topic(title: str, platform: str) -> Dict[str, Any]:
@@ -139,6 +160,12 @@ def analyze_hot_topic(title: str, platform: str) -> Dict[str, Any]:
             )
             if success:
                 break
+            if _is_server_or_network_error(last_error):
+                break
+        
+        # If the entire primary provider stage failed, increment its failures
+        if not success:
+            _consecutive_provider_failures[api_url] = _consecutive_provider_failures.get(api_url, 0) + 1
     
     # 第二阶段：容灾回退
     fb_url = os.getenv("FALLBACK_API_URL")
@@ -155,6 +182,12 @@ def analyze_hot_topic(title: str, platform: str) -> Dict[str, Any]:
                 break
             else:
                 last_error = fb_error
+            if _is_server_or_network_error(fb_error):
+                break
+                
+        # If the entire fallback provider stage failed, increment its failures
+        if not success:
+            _consecutive_provider_failures[fb_url] = _consecutive_provider_failures.get(fb_url, 0) + 1
 
     if success:
         return analysis
