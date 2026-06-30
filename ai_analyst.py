@@ -59,7 +59,7 @@ def _call_openai_compatible_api(
     failures = _consecutive_provider_failures.get(api_url, 0)
     has_succeeded = api_url in _successful_providers
 
-    if (not has_succeeded and failures > 0) or (has_succeeded and failures >= 3):
+    if failures >= 3:
         return False, None, Exception(
             f"Provider at {api_url} was skipped due to consecutive failures ({failures} failures)."
         )

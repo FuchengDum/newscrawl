@@ -41,8 +41,10 @@ def test_ai_generation_output_mocked():
         assert res["target_audience"] == "开发者"
         mock_post.assert_called_once()
 
+@pytest.mark.integration
 def test_ai_generation_output_live():
-    # 如果当前环境有可用的 KEY，进行真实集成测试
+    # 真实集成测试：发起真实网络请求，需要有效的 API KEY
+    # 在 CI 中通过 `pytest -m "not integration"` 跳过
     load_dotenv()
     real_key = os.getenv("GEMINI_API_KEY")
     if real_key and real_key != "your_actual_gemini_api_key_here":
@@ -118,40 +120,48 @@ def test_ai_generation_failover_refactored():
                 os.environ.pop("FALLBACK_MODELS", None)
 
 def test_model_skip_on_repeated_failure():
-    # Reset tracking sets for the test
-    ai_analyst._consecutive_provider_failures.clear()
-    ai_analyst._successful_providers.clear()
+    """Test that a provider is skipped once failures reach the circuit-breaker threshold (>= 3).
 
-    # Mock post to fail
-    mock_response = MagicMock()
-    mock_response.status_code = 500
-    mock_response.raise_for_status.side_effect = Exception("HTTP 500 Error")
+    Uses analyze_hot_topic (high-level) so the failure counter is managed by real code,
+    not manually patched. Provider-level skip applies to all models on the same URL.
+    """
+    import requests
 
-    with patch("requests.post", return_value=mock_response) as mock_post:
-        # First attempt should fail and call post
-        success, analysis, error = ai_analyst._call_openai_compatible_api(
-            "https://test-url.com/v1", "key", "test-model", "hello", max_retries=1
-        )
-        assert success is False
-        assert mock_post.call_count == 1
-        # Manually increment since we called _call_openai_compatible_api directly
-        ai_analyst._consecutive_provider_failures["https://test-url.com/v1"] = 1
+    _TEST_URL = "https://test-repeated-failure.com/v1"
+    _VALID_JSON = (
+        '{"has_value": true, "value_score": 5, "target_audience": "x", '
+        '"pain_point": "x", "product_concept": "x", "difficulty": "easy", "analysis_summary": "x"}'
+    )
 
-        # Second attempt should skip and NOT call post
-        success, analysis, error = ai_analyst._call_openai_compatible_api(
-            "https://test-url.com/v1", "key", "test-model", "hello", max_retries=1
-        )
-        assert success is False
-        assert "skipped" in str(error)
-        assert mock_post.call_count == 1  # Should still be 1!
+    mock_fail = MagicMock()
+    mock_fail.status_code = 500
+    mock_fail.raise_for_status.side_effect = requests.exceptions.HTTPError(
+        "500 Server Error", response=mock_fail
+    )
 
-        # Now, if we try another model on the same provider, it should also skip it (provider-level skip)
-        success, analysis, error = ai_analyst._call_openai_compatible_api(
-            "https://test-url.com/v1", "key", "another-model", "hello", max_retries=1
-        )
-        assert success is False
-        assert "skipped" in str(error)
-        assert mock_post.call_count == 1  # Should still be 1!
+    env_overrides = {
+        "GEMINI_API_KEY": "mock_key",
+        "GEMINI_API_URL": _TEST_URL,
+        "GEMINI_MODEL": "model-a,model-b",
+        "FALLBACK_API_URL": "",
+        "FALLBACK_API_KEY": "",
+        "FALLBACK_MODELS": "",
+    }
+
+    with patch.dict(os.environ, env_overrides):
+        # Fail 3 times — each call increments the provider failure counter by 1
+        with patch("requests.post", return_value=mock_fail) as mock_post:
+            for i in range(3):
+                res = ai_analyst.analyze_hot_topic("test", "weibo")
+                assert res["has_value"] is False
+
+        assert ai_analyst._consecutive_provider_failures.get(_TEST_URL, 0) == 3
+
+        # 4th call: circuit-breaker fires — no HTTP requests for any model on this provider
+        with patch("requests.post") as mock_post:
+            res = ai_analyst.analyze_hot_topic("test", "weibo")
+            assert res["has_value"] is False
+            assert mock_post.call_count == 0  # Both model-a and model-b were skipped!
 
 
 def test_ai_primary_model_switching():
@@ -221,46 +231,59 @@ def test_ai_primary_model_switching():
 
 
 def test_model_skip_on_consecutive_failures():
-    # Test that a model which succeeded in the past is skipped after 3 consecutive failures
+    """Test that a provider is circuit-broken after 3 full-provider consecutive failures.
+
+    Uses analyze_hot_topic (high-level function) so that _consecutive_provider_failures
+    is incremented by real code paths, not manually manipulated internals.
+    """
     import requests
-    
-    # 1. First attempt: succeed
-    mock_response_success = MagicMock()
-    mock_response_success.json.return_value = {
-        "choices": [{"message": {"content": '{"has_value": true, "value_score": 7}'}}]
+
+    _TEST_URL = "https://test-circuit-breaker.com/v1"
+    _VALID_JSON_CONTENT = (
+        '{"has_value": true, "value_score": 7, "target_audience": "x", '
+        '"pain_point": "x", "product_concept": "x", "difficulty": "easy", "analysis_summary": "x"}'
+    )
+
+    mock_success = MagicMock()
+    mock_success.json.return_value = {
+        "choices": [{"message": {"content": _VALID_JSON_CONTENT}}]
     }
-    
-    with patch("requests.post", return_value=mock_response_success) as mock_post:
-        success, analysis, error = ai_analyst._call_openai_compatible_api(
-            "https://test-url.com/v1", "key", "test-model", "hello", max_retries=1
-        )
-        assert success is True
-        assert mock_post.call_count == 1
 
-    # 2. Next 3 attempts: fail
-    mock_response_fail = MagicMock()
-    mock_response_fail.status_code = 500
-    mock_response_fail.raise_for_status.side_effect = Exception("HTTP 500 Error")
-    
-    with patch("requests.post", return_value=mock_response_fail) as mock_post:
-        for i in range(3):
-            success, analysis, error = ai_analyst._call_openai_compatible_api(
-                "https://test-url.com/v1", "key", "test-model", "hello", max_retries=1
-            )
-            assert success is False
-            assert mock_post.call_count == i + 1
-            # Manually increment failure count since we call the lower-level API function directly
-            ai_analyst._consecutive_provider_failures["https://test-url.com/v1"] = \
-                ai_analyst._consecutive_provider_failures.get("https://test-url.com/v1", 0) + 1
+    mock_fail = MagicMock()
+    mock_fail.status_code = 500
+    mock_fail.raise_for_status.side_effect = requests.exceptions.HTTPError(
+        "500 Server Error", response=mock_fail
+    )
 
-    # 3. 5th attempt: should skip and NOT call post
-    with patch("requests.post", return_value=mock_response_fail) as mock_post:
-        success, analysis, error = ai_analyst._call_openai_compatible_api(
-            "https://test-url.com/v1", "key", "test-model", "hello", max_retries=1
-        )
-        assert success is False
-        assert "skipped" in str(error)
-        assert mock_post.call_count == 0  # Should be skipped!
+    env_overrides = {
+        "GEMINI_API_KEY": "mock_key",
+        "GEMINI_API_URL": _TEST_URL,
+        "GEMINI_MODEL": "test-model",
+        "FALLBACK_API_URL": "",
+        "FALLBACK_API_KEY": "",
+        "FALLBACK_MODELS": "",
+    }
+
+    with patch.dict(os.environ, env_overrides):
+        # 1. First call: succeed — marks provider as successful
+        with patch("requests.post", return_value=mock_success):
+            res = ai_analyst.analyze_hot_topic("test", "weibo")
+            assert res["has_value"] is True
+            assert _TEST_URL in ai_analyst._successful_providers
+
+        # 2. Next 3 calls: fail — each increments consecutive_provider_failures by 1
+        with patch("requests.post", return_value=mock_fail):
+            for _ in range(3):
+                res = ai_analyst.analyze_hot_topic("test", "weibo")
+                assert res["has_value"] is False
+
+        assert ai_analyst._consecutive_provider_failures.get(_TEST_URL, 0) == 3
+
+        # 3. 4th failure call: circuit-breaker should fire, no HTTP requests made
+        with patch("requests.post") as mock_post:
+            res = ai_analyst.analyze_hot_topic("test", "weibo")
+            assert res["has_value"] is False
+            assert mock_post.call_count == 0  # Provider was skipped by circuit-breaker!
 
 
 def test_primary_model_switch_continues_on_server_error():
